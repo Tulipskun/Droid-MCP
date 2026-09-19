@@ -25,8 +25,22 @@ class CloudflareTunnelRuntimeTest {
         assertTrue("cloudflared is too small", binary.length() > 1024 * 1024)
 
         val versionProcess = ProcessBuilder(binary.absolutePath, "version").redirectErrorStream(true).start()
-        val versionOutput = versionProcess.inputStream.bufferedReader().use { it.readText() }
-        val versionExitCode = versionProcess.waitFor()
+        val versionOutput = versionProcess.inputStream.bufferedReader().use { reader ->
+            val output = StringBuilder()
+            val deadline = System.currentTimeMillis() + 15_000
+            while (System.currentTimeMillis() < deadline && versionProcess.isAlive) {
+                while (reader.ready()) {
+                    output.append(reader.readLine()).append('\n')
+                }
+                Thread.sleep(50)
+            }
+            while (reader.ready()) {
+                output.append(reader.readLine()).append('\n')
+            }
+            if (versionProcess.isAlive) versionProcess.destroyForcibly()
+            output.toString()
+        }
+        val versionExitCode = if (versionProcess.isAlive) -1 else versionProcess.exitValue()
 
         assertEquals("cloudflared version command failed: " + versionOutput, 0, versionExitCode)
         assertTrue(
@@ -45,7 +59,7 @@ class CloudflareTunnelRuntimeTest {
             context.startForegroundService(serviceIntent)
 
             val preferences = context.getSharedPreferences("droid_mcp", 0)
-            val deadline = System.currentTimeMillis() + 180_000
+            val deadline = System.currentTimeMillis() + 90_000
             var quickUrl: String? = null
 
             while (System.currentTimeMillis() < deadline) {
