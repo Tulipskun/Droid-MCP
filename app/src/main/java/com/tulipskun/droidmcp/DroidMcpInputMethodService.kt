@@ -3,6 +3,7 @@ package com.tulipskun.droidmcp
 import android.graphics.Color
 import android.inputmethodservice.InputMethodService
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
@@ -28,11 +29,18 @@ class DroidMcpInputMethodService : InputMethodService() {
         }
 
         root.addView(
-            createRow(
+            createActionRow(
                 listOf(
                     "⌫" to { currentInputConnection?.deleteSurroundingText(1, 0) },
                     "SPACE" to { currentInputConnection?.commitText(" ", 1) },
-                    "↵" to { currentInputConnection?.sendKeyEvent(android.view.KeyEvent(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_ENTER)) }
+                    "↵" to {
+                        currentInputConnection?.sendKeyEvent(
+                            KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)
+                        )
+                        currentInputConnection?.sendKeyEvent(
+                            KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_ENTER)
+                        )
+                    }
                 )
             )
         )
@@ -41,31 +49,28 @@ class DroidMcpInputMethodService : InputMethodService() {
     }
 
     private fun createRow(keys: List<String>): View {
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-
+        val row = createBaseRow()
         keys.forEach { key ->
             row.addView(createKey(key))
         }
-
         return row
     }
 
-    private fun createRow(keys: List<Pair<String, () -> Unit>>): View {
-        val row = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER
-        }
-
+    private fun createActionRow(keys: List<Pair<String, () -> Unit>>): View {
+        val row = createBaseRow()
         keys.forEach { (label, action) ->
             val button = createKey(label)
             button.setOnClickListener { action() }
             row.addView(button)
         }
-
         return row
+    }
+
+    private fun createBaseRow(): LinearLayout {
+        return LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
     }
 
     private fun createKey(label: String): Button {
