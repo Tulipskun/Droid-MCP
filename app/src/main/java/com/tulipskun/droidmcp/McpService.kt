@@ -30,7 +30,8 @@ class McpService : Service() {
 
         startForeground(NOTIFICATION_ID, notification)
 
-        server = McpServer(8787, AdbBridge())
+        val preferences = getSharedPreferences("droid_mcp", MODE_PRIVATE)
+        server = McpServer(8787, AdbBridge(preferences))
         server!!.start()
         isRunning = true
     }
