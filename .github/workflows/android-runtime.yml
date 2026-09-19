@@ -80,7 +80,7 @@ jobs:
 
   run-on-arm64-android:
     needs: build-test-apks
-    runs-on: ubuntu-24.04-arm
+    runs-on: macos-latest
     steps:
       - uses: actions/download-artifact@v5
         with:
