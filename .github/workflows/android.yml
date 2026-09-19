@@ -31,6 +31,15 @@ jobs:
         with:
           packages: "platform-tools"
 
+      - name: Cache Android SDK packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.ANDROID_HOME }}/platforms/android-35
+            ${{ env.ANDROID_HOME }}/build-tools/35.0.0
+            ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
+          key: android-sdk-35-buildtools-35.0.0-ndk-27.3.13750724
+
       - name: Install Android SDK packages
         run: |
           sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.3.13750724"
@@ -50,6 +59,13 @@ jobs:
           path: app/src/main/jniLibs
           key: cloudflared-binaries-${{ steps.cloudflared.outputs.ref }}-ndk27.3-go1.26
 
+      - name: Cache cloudflared source
+        id: cloudflared-source
+        uses: actions/cache@v4
+        with:
+          path: /tmp/cloudflared
+          key: cloudflared-source-${{ steps.cloudflared.outputs.ref }}
+
       - name: Cache cloudflared Go dependencies
         id: cloudflared-go
         uses: actions/cache@v4
@@ -65,7 +81,10 @@ jobs:
           ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
         run: |
           set -euxo pipefail
-          git clone --depth 1 https://github.com/cloudflare/cloudflared.git /tmp/cloudflared
+          if [ ! -f /tmp/cloudflared/go.mod ]; then
+            rm -rf /tmp/cloudflared
+            git clone --depth 1 https://github.com/cloudflare/cloudflared.git /tmp/cloudflared
+          fi
           cd /tmp/cloudflared
           export TOOLCHAIN="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64"
           mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a" "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a" "$GITHUB_WORKSPACE/app/src/main/jniLibs/x86_64"
