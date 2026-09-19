@@ -51,6 +51,13 @@
             android:text="Connect ADB" />
 
         <Button
+            android:id="@+id/enable_keyboard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="Enable Droid-MCP Keyboard" />
+
+        <Button
             android:id="@+id/switch_keyboard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
