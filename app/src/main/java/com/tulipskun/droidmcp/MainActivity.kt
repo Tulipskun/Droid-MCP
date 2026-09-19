@@ -6,8 +6,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.view.inputmethod.InputMethodManager
 import android.provider.Settings
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.TextView
 
@@ -16,6 +16,8 @@ class MainActivity : Activity() {
     private lateinit var mcpStatus: TextView
     private lateinit var mcpToggle: Button
     private lateinit var adbConnect: Button
+    private lateinit var keyboardEnable: Button
+    private lateinit var keyboardSwitch: Button
 
     private val preferences by lazy {
         getSharedPreferences("droid_mcp", MODE_PRIVATE)
@@ -29,6 +31,8 @@ class MainActivity : Activity() {
         mcpStatus = findViewById(R.id.mcp_status)
         mcpToggle = findViewById(R.id.toggle)
         adbConnect = findViewById(R.id.connect_adb)
+        keyboardEnable = findViewById(R.id.enable_keyboard)
+        keyboardSwitch = findViewById(R.id.switch_keyboard)
 
         if (
             Build.VERSION.SDK_INT >= 33 &&
@@ -46,21 +50,16 @@ class MainActivity : Activity() {
             checkAdbConnection()
         }
 
-        findViewById<Button>(R.id.enable_keyboard)
-            .setOnClickListener {
-                startActivity(
-                    Intent(
-                        Settings.ACTION_INPUT_METHOD_SETTINGS
-                    )
-                )
-            }
+        keyboardEnable.setOnClickListener {
+            startActivity(
+                Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)
+            )
+        }
 
-        findViewById<Button>(R.id.switch_keyboard)
-            .setOnClickListener {
-                getSystemService(
-                    InputMethodManager::class.java
-                ).showInputMethodPicker()
-            }
+        keyboardSwitch.setOnClickListener {
+            getSystemService(InputMethodManager::class.java)
+                .showInputMethodPicker()
+        }
 
         mcpToggle.setOnClickListener {
             val intent = Intent(
