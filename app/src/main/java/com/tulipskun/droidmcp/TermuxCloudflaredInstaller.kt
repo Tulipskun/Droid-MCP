@@ -41,19 +41,29 @@ object TermuxCloudflaredInstaller {
         val versionFile = File(directory, "version")
         val installedVersion = versionFile.takeIf { it.isFile }?.readText()?.trim()
         val architecture = resolveRepositoryArchitecture()
+        val runner = cloudflaredRunner(context)
 
-        if (binary.isFile && binary.length() > 1024 * 1024 && binary.canExecute()) {
+        if (!runner.isFile || !runner.canExecute()) {
+            throw IllegalStateException(
+                "Cloudflared runner is missing: " + runner.absolutePath
+            )
+        }
+
+        if (binary.isFile && binary.length() > 1024 * 1024) {
             try {
                 val info = fetchPackageInfo(architecture)
                 if (installedVersion == info.version) {
+                    verifyBinary(runner, binary)
                     setInstallState(context, "cloudflared ready")
                     return binary
                 }
                 setInstallState(context, "Updating cloudflared")
-                installPackage(directory, binary, versionFile, info)
+                installPackage(runner, directory, binary, versionFile, info)
                 return binary
             } catch (error: Throwable) {
                 if (!installedVersion.isNullOrBlank()) {
+                    verifyBinary(runner, binary)
+                    setInstallState(context, "cloudflared ready")
                     return binary
                 }
                 throw error
@@ -62,7 +72,7 @@ object TermuxCloudflaredInstaller {
 
         val info = fetchPackageInfo(architecture)
         setInstallState(context, "Installing cloudflared")
-        installPackage(directory, binary, versionFile, info)
+        installPackage(runner, directory, binary, versionFile, info)
         setInstallState(context, "cloudflared ready")
         return binary
     }
@@ -154,6 +164,7 @@ object TermuxCloudflaredInstaller {
     }
 
     private fun installPackage(
+        runner: File,
         directory: File,
         binary: File,
         versionFile: File,
@@ -201,28 +212,7 @@ object TermuxCloudflaredInstaller {
                 )
             }
 
-            try {
-                val process = ProcessBuilder(
-                    tempBinary.absolutePath,
-                    "version"
-                )
-                    .redirectErrorStream(true)
-                    .start()
-                val output = process.inputStream.bufferedReader().use { it.readText() }
-                val exitCode = process.waitFor()
-                if (exitCode != 0) {
-                    throw IllegalStateException(
-                        "cloudflared execution failed (" + exitCode + "): " +
-                            output.trim().take(500)
-                    )
-                }
-            } catch (error: Throwable) {
-                throw IllegalStateException(
-                    "Extracted cloudflared cannot execute: " +
-                        (error.message ?: error.javaClass.simpleName),
-                    error
-                )
-            }
+            verifyBinary(runner, tempBinary)
 
             if (binary.exists() && !binary.delete()) {
                 throw IllegalStateException("Could not replace existing cloudflared")
@@ -237,6 +227,40 @@ object TermuxCloudflaredInstaller {
         } finally {
             tempPackage.delete()
             tempBinary.delete()
+        }
+    }
+
+
+    private fun cloudflaredRunner(context: Context): File {
+        return File(
+            context.applicationInfo.nativeLibraryDir,
+            "libcloudflared_runner.so"
+        )
+    }
+
+    private fun verifyBinary(runner: File, binary: File) {
+        try {
+            val process = ProcessBuilder(
+                runner.absolutePath,
+                binary.absolutePath,
+                "version"
+            )
+                .redirectErrorStream(true)
+                .start()
+            val output = process.inputStream.bufferedReader().use { it.readText() }
+            val exitCode = process.waitFor()
+            if (exitCode != 0) {
+                throw IllegalStateException(
+                    "cloudflared execution failed (" + exitCode + "): " +
+                        output.trim().take(500)
+                )
+            }
+        } catch (error: Throwable) {
+            throw IllegalStateException(
+                "Extracted cloudflared cannot execute: " +
+                    (error.message ?: error.javaClass.simpleName),
+                error
+            )
         }
     }
 
