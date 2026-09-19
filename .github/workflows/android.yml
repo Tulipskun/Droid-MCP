@@ -41,14 +41,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          latest="$(gh release list --limit 100 --json tagName --jq '.[].tagName' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)"
-          if [ -z "$latest" ]; then
-            next="v0.1.0"
-          else
-            version="${latest#v}"
-            IFS=. read -r major minor patch <<< "$version"
-            next="v$major.$minor.$((patch + 1))"
-          fi
+          next="v0.3.${GITHUB_RUN_NUMBER}"
           echo "tag=$next" >> "$GITHUB_OUTPUT"
           echo "versionName=${next#v}" >> "$GITHUB_OUTPUT"
           echo "versionCode=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
