@@ -263,6 +263,7 @@ class McpServer(
 
             else -> error(id, -32601, "Method not found: $method")
         }
+    }
 
     private fun callTool(name: String, args: JSONObject): JSONObject {
         return try {
