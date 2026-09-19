@@ -6,8 +6,8 @@ on:
   pull_request:
 
 jobs:
-  runtime:
-    runs-on: ubuntu-24.04-arm
+  build-test-apks:
+    runs-on: ubuntu-latest
     env:
       CLOUDFLARED_VERSION: "2026.9.1"
     steps:
@@ -60,7 +60,34 @@ jobs:
       - name: Build test APKs
         run: gradle assembleDebug assembleDebugAndroidTest
 
-      - name: Run runtime test on ARM64 Android emulator
+      - name: Verify bundled cloudflared in APK
+        run: |
+          unzip -l app/build/outputs/apk/debug/app-debug.apk | \
+            grep -E "lib/arm64-v8a/libcloudflared\\.so$"
+          unzip -p app/build/outputs/apk/debug/app-debug.apk \
+            lib/arm64-v8a/libcloudflared.so > /tmp/cloudflared-from-apk
+          test "$(stat -c%s /tmp/cloudflared-from-apk)" -gt 1048576
+          readelf -h /tmp/cloudflared-from-apk | \
+            grep -E "Class:.*ELF64|Machine:.*AArch64"
+
+      - name: Upload test APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-runtime-test-apks
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+
+  run-on-arm64-android:
+    needs: build-test-apks
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: android-runtime-test-apks
+          path: apks
+
+      - name: Run on ARM64 Android emulator
         uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
           api-level: 35
@@ -72,4 +99,7 @@ jobs:
           heap-size: 1024M
           disable-animations: true
           emulator-boot-timeout: 900
-          script: gradle connectedDebugAndroidTest
+          script: |
+            adb install -r apks/app-debug.apk
+            adb install -r apks/app-debug-androidTest.apk
+            adb shell am instrument -w -r               -e class com.tulipskun.droidmcp.CloudflareTunnelRuntimeTest               com.tulipskun.droidmcp.test/androidx.test.runner.AndroidJUnitRunner
