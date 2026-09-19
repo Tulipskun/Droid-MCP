@@ -34,9 +34,7 @@ class MainActivity : Activity() {
     private val tunnelPoll = object : Runnable {
         override fun run() {
             refreshTunnel()
-            if (CloudflareTunnelService.isRunning) {
-                uiHandler.postDelayed(this, 500)
-            }
+            uiHandler.postDelayed(this, 500)
         }
     }
 
