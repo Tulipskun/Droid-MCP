@@ -51,6 +51,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          cd "$GITHUB_WORKSPACE"
           gh release view cloudflared-android >/dev/null 2>&1 || \
             gh release create cloudflared-android \
               --title "Cloudflared Android $CLOUDFLARED_VERSION" \
