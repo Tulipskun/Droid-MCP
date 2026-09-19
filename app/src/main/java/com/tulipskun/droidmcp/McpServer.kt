@@ -124,9 +124,7 @@ class McpServer(
                     return
                 }
 
-                validateRequestHeaders(headers, request)
-
-                val response = dispatch(request)
+                val response = dispatch(request, headers)
 
                 writeResponse(
                     output,
@@ -185,107 +183,86 @@ class McpServer(
         return headers
     }
 
-    private fun validateRequestHeaders(
-        headers: Map<String, String>,
-        request: JSONObject
-    ) {
-        val method = request.optString("method")
-        val params = request.optJSONObject("params")
-            ?: throw ProtocolException("Missing params")
-
-        val meta = params.optJSONObject("_meta")
-            ?: throw ProtocolException("Missing params._meta")
-
-        val bodyProtocol = meta.optString("io.modelcontextprotocol/protocolVersion")
+    private fun validateProtocolHeader(headers: Map<String, String>) {
         val headerProtocol = headers["mcp-protocol-version"]
-
-        if (headerProtocol == null || bodyProtocol.isBlank()) {
-            throw ProtocolException("Missing MCP protocol version")
-        }
-
-        if (headerProtocol != bodyProtocol) {
-            throw HeaderMismatchException("MCP-Protocol-Version does not match request metadata")
-        }
-
-        if (bodyProtocol != PROTOCOL_VERSION) {
+        if (headerProtocol != PROTOCOL_VERSION) {
             throw ProtocolException(
-                "Unsupported MCP protocol version: $bodyProtocol",
+                "Unsupported MCP protocol version: ${headerProtocol ?: "missing"}",
                 UNSUPPORTED_PROTOCOL_VERSION,
                 JSONObject()
-                    .put("supported", JSONArray().put(PROTOCOL_VERSION))
-                    .put("requested", bodyProtocol)
+                    .put("supported", JSONArray(SUPPORTED_PROTOCOL_VERSIONS))
+                    .put("requested", headerProtocol ?: JSONObject.NULL)
             )
-        }
-
-        if (!meta.has("io.modelcontextprotocol/clientCapabilities")) {
-            throw ProtocolException("Missing client capabilities")
-        }
-
-        val headerMethod = headers["mcp-method"]
-        if (headerMethod == null || headerMethod != method) {
-            throw HeaderMismatchException("Mcp-Method does not match request method")
-        }
-
-        if (method == "tools/call") {
-            val name = params.optString("name")
-            val headerName = headers["mcp-name"]
-
-            if (name.isBlank() || headerName == null || headerName != name) {
-                throw HeaderMismatchException("Mcp-Name does not match tool name")
-            }
         }
     }
 
-    private fun dispatch(request: JSONObject): JSONObject {
+    private fun dispatch(
+        request: JSONObject,
+        headers: Map<String, String>
+    ): JSONObject {
         val id = if (request.has("id")) request.opt("id") else JSONObject.NULL
         val method = request.optString("method")
         val params = request.optJSONObject("params") ?: JSONObject()
 
         return when (method) {
-            "server/discover" -> result(
-                id,
-                JSONObject()
-                    .put("resultType", "complete")
-                    .put("supportedVersions", JSONArray().put(PROTOCOL_VERSION))
-                    .put(
-                        "capabilities",
-                        JSONObject().put(
-                            "tools",
-                            JSONObject().put("listChanged", false)
-                        )
-                    )
-                    .put(
-                        "instructions",
-                        "Droid-MCP exposes Android input and screenshot tools."
-                    )
-                    .put("ttlMs", 3600000)
-                    .put("cacheScope", "public")
-            )
+            "initialize" -> {
+                val params = request.optJSONObject("params")
+                    ?: throw ProtocolException("Missing params")
+                val requested = params.optString("protocolVersion")
+                val negotiated = if (requested in SUPPORTED_PROTOCOL_VERSIONS) {
+                    requested
+                } else {
+                    PROTOCOL_VERSION
+                }
 
-            "tools/list" -> result(
-                id,
-                JSONObject()
-                    .put("resultType", "complete")
-                    .put("tools", ToolCatalog.definitions())
-                    .put("ttlMs", 300000)
-                    .put("cacheScope", "public")
-            )
+                result(
+                    id,
+                    JSONObject()
+                        .put("protocolVersion", negotiated)
+                        .put(
+                            "capabilities",
+                            JSONObject().put(
+                                "tools",
+                                JSONObject().put("listChanged", false)
+                            )
+                        )
+                        .put(
+                            "serverInfo",
+                            JSONObject()
+                                .put("name", "Droid-MCP")
+                                .put("version", VERSION)
+                        )
+                        .put(
+                            "instructions",
+                            "Droid-MCP exposes Android input and screenshot tools."
+                        )
+                )
+            }
+
+            "tools/list" -> {
+                validateProtocolHeader(headers)
+                result(
+                    id,
+                    JSONObject()
+                        .put("tools", ToolCatalog.definitions())
+                )
+            }
 
             "tools/call" -> {
+                validateProtocolHeader(headers)
                 val name = params.optString("name")
                 val args = params.optJSONObject("arguments") ?: JSONObject()
                 result(id, callTool(name, args))
             }
 
-            "initialize" -> error(
+            "server/discover" -> result(
                 id,
-                -32601,
-                "initialize is not part of MCP 2026-07-28; use server/discover"
+                JSONObject()
+                    .put("supportedVersions", JSONArray(SUPPORTED_PROTOCOL_VERSIONS))
             )
 
             else -> error(id, -32601, "Method not found: $method")
         }
-    }
 
     private fun callTool(name: String, args: JSONObject): JSONObject {
         return try {
@@ -508,10 +485,14 @@ class McpServer(
     private class HeaderMismatchException(message: String) : RuntimeException(message)
 
     companion object {
-        const val PROTOCOL_VERSION = "2026-07-28"
-        const val VERSION = "0.1.0"
-        private const val HEADER_MISMATCH = -32020
-        private const val UNSUPPORTED_PROTOCOL_VERSION = -32022
+        const val PROTOCOL_VERSION = "2025-11-25"
+        const val VERSION = "0.2.0"
+        private val SUPPORTED_PROTOCOL_VERSIONS = listOf(
+            "2025-11-25",
+            "2025-06-18",
+            "2025-03-26"
+        )
+        private const val UNSUPPORTED_PROTOCOL_VERSION = -32602
         private const val MAX_BODY = 1024 * 1024
     }
 }
