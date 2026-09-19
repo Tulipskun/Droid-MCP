@@ -64,7 +64,7 @@ class AdbBridge(private val preferences: android.content.SharedPreferences) {
             }
 
             if (line == marker) break
-            output.append(line).append('\\n')
+            output.append(line).append('\n')
         }
 
         return output.toString()
