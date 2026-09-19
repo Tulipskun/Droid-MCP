@@ -32,7 +32,7 @@ class McpService : Service() {
 
         val preferences = getSharedPreferences("droid_mcp", MODE_PRIVATE)
         try {
-            server = McpServer(8787, AdbBridge(preferences))
+            server = McpServer(8787, ShizukuBridge(preferences))
             server!!.start()
             isRunning = true
         } catch (_: Throwable) {
