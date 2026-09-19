@@ -69,21 +69,14 @@ jobs:
         with:
           name: Droid-MCP-debug
           path: Droid-MCP.apk
-      - name: Delete obsolete Cloudflared-only release
-        if: github.event_name == 'pull_request' && github.event.pull_request.number == 5
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release delete cloudflared-android --yes --cleanup-tag || true
-
-      - name: Create release tag
-        if: github.event_name == 'pull_request' && github.event.pull_request.number == 5
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG_TARGET: ${{ github.event.pull_request.head.sha }}
-        run: gh api --method POST repos/${{ github.repository }}/git/refs -f ref=refs/tags/v0.2.1 -f sha="$TAG_TARGET"
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'pull_request' && github.event.pull_request.number == 5)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" Droid-MCP.apk --title "Droid-MCP $GITHUB_REF_NAME" --generate-notes
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            RELEASE_TAG="$GITHUB_REF_NAME"
+          else
+            RELEASE_TAG="v0.2.1"
+          fi
+          gh release create "$RELEASE_TAG" Droid-MCP.apk --title "Droid-MCP $RELEASE_TAG" --generate-notes
