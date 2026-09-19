@@ -75,6 +75,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh release delete cloudflared-android --yes --cleanup-tag || true
 
+      - name: Create release tag
+        if: github.event_name == 'pull_request' && github.event.pull_request.number == 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_TARGET: ${{ github.event.pull_request.head.sha }}
+        run: gh api --method POST repos/${{ github.repository }}/git/refs -f ref=refs/tags/v0.2.1 -f sha="$TAG_TARGET"
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
