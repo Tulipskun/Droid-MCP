@@ -56,17 +56,7 @@ class McpServer(
 
                 val method = parts[0]
                 val path = parts[1]
-                val headers = linkedMapOf<String, String>()
-
-                while (true) {
-                    val line = readLine(input) ?: return
-                    if (line.isEmpty()) break
-                    val index = line.indexOf(':')
-                    if (index > 0) {
-                        headers[line.substring(0, index).trim().lowercase()] =
-                            line.substring(index + 1).trim()
-                    }
-                }
+                val headers = readHeaders(input)
 
                 if (path != "/mcp") {
                     writeResponse(output, 404, "application/json", error(null, -32601, "Not found"))
@@ -81,17 +71,6 @@ class McpServer(
                 val origin = headers["origin"]
                 if (origin != null && origin != "null") {
                     writeResponse(output, 403, "application/json", error(null, -32000, "Invalid Origin"))
-                    return
-                }
-
-                val protocol = headers["mcp-protocol-version"]
-                if (protocol != null && protocol != PROTOCOL_VERSION) {
-                    writeResponse(
-                        output,
-                        400,
-                        "application/json",
-                        error(null, -32602, "Unsupported MCP protocol version: $protocol")
-                    )
                     return
                 }
 
@@ -110,6 +89,8 @@ class McpServer(
                     return
                 }
 
+                validateRequestHeaders(headers, request)
+
                 writeResponse(
                     output,
                     200,
@@ -118,6 +99,59 @@ class McpServer(
                 )
             } catch (e: Throwable) {
                 writeResponseSafe(s, 500, error(null, -32603, e.message ?: "Internal error"))
+            }
+        }
+    }
+
+    private fun readHeaders(input: BufferedInputStream): Map<String, String> {
+        val headers = linkedMapOf<String, String>()
+        while (true) {
+            val line = readLine(input) ?: throw IllegalArgumentException("Unexpected end of headers")
+            if (line.isEmpty()) break
+
+            val index = line.indexOf(':')
+            if (index > 0) {
+                headers[line.substring(0, index).trim().lowercase()] =
+                    line.substring(index + 1).trim()
+            }
+        }
+        return headers
+    }
+
+    private fun validateRequestHeaders(
+        headers: Map<String, String>,
+        request: JSONObject
+    ) {
+        val method = request.optString("method")
+        val params = request.optJSONObject("params") ?: JSONObject()
+        val meta = params.optJSONObject("_meta")
+            ?: throw ProtocolException("Missing params._meta")
+
+        val bodyProtocol = meta.optString("io.modelcontextprotocol/protocolVersion")
+        val headerProtocol = headers["mcp-protocol-version"]
+
+        if (headerProtocol == null || bodyProtocol.isBlank()) {
+            throw ProtocolException("Missing MCP protocol version")
+        }
+
+        if (headerProtocol != bodyProtocol) {
+            throw HeaderMismatchException("MCP-Protocol-Version does not match request metadata")
+        }
+
+        if (bodyProtocol != PROTOCOL_VERSION) {
+            throw ProtocolException("Unsupported MCP protocol version: $bodyProtocol")
+        }
+
+        val headerMethod = headers["mcp-method"]
+        if (headerMethod == null || headerMethod != method) {
+            throw HeaderMismatchException("Mcp-Method does not match request method")
+        }
+
+        if (method == "tools/call") {
+            val name = params.optString("name")
+            val headerName = headers["mcp-name"]
+            if (name.isBlank() || headerName == null || headerName != name) {
+                throw HeaderMismatchException("Mcp-Name does not match tool name")
             }
         }
     }
@@ -135,9 +169,7 @@ class McpServer(
                     .put("capabilities", JSONObject().put("tools", JSONObject()))
                     .put(
                         "serverInfo",
-                        JSONObject()
-                            .put("name", "Droid-MCP")
-                            .put("version", "0.1.0")
+                        JSONObject().put("name", "Droid-MCP").put("version", VERSION)
                     )
             )
             "ping" -> result(id, JSONObject())
@@ -218,7 +250,17 @@ class McpServer(
         JSONObject().put("type", "text").put("text", text)
 
     private fun result(id: Any?, value: JSONObject): JSONObject =
-        JSONObject().put("jsonrpc", "2.0").put("id", id).put("result", value)
+        JSONObject()
+            .put("jsonrpc", "2.0")
+            .put("id", id)
+            .put("_meta", serverMeta())
+            .put("result", value)
+
+    private fun serverMeta(): JSONObject =
+        JSONObject()
+            .put("io.modelcontextprotocol/serverInfo", JSONObject()
+                .put("name", "Droid-MCP")
+                .put("version", VERSION))
 
     private fun error(id: Any?, code: Int, message: String): JSONObject =
         JSONObject()
@@ -301,8 +343,13 @@ class McpServer(
         else -> "Error"
     }
 
+    private class ProtocolException(message: String) : RuntimeException(message)
+
+    private class HeaderMismatchException(message: String) : RuntimeException(message)
+
     companion object {
         const val PROTOCOL_VERSION = "2026-07-28"
+        const val VERSION = "0.1.0"
         private const val MAX_BODY = 1024 * 1024
     }
 }
