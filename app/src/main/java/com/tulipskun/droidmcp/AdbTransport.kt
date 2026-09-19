@@ -31,6 +31,7 @@ internal class AdbTransport(
     private var input: DataInputStream? = null
     private var output: DataOutputStream? = null
     private var nextLocalId = 1
+    private var skipChecksum = false
 
     fun connect() {
         if (socket != null && socket!!.isConnected && !socket!!.isClosed) return
@@ -66,6 +67,7 @@ internal class AdbTransport(
 
             when (packet.command) {
                 A_CNXN -> {
+                    skipChecksum = true
                     newSocket.soTimeout = 0
                     return
                 }
@@ -183,7 +185,7 @@ internal class AdbTransport(
         val payload = ByteArray(dataLength)
         inputStream.readFully(payload)
 
-        if (checksum != checksum(payload)) {
+        if (!skipChecksum && checksum != checksum(payload)) {
             throw AdbException("ADB payload checksum mismatch")
         }
 
@@ -209,7 +211,7 @@ internal class AdbTransport(
         outputStream.writeIntLE(arg0)
         outputStream.writeIntLE(arg1)
         outputStream.writeIntLE(payload.size)
-        outputStream.writeIntLE(checksum(payload))
+        outputStream.writeIntLE(if (skipChecksum) 0 else checksum(payload))
         outputStream.writeIntLE(command xor -1)
         outputStream.write(payload)
         outputStream.flush()
@@ -225,6 +227,7 @@ internal class AdbTransport(
         input = null
         output = null
         nextLocalId = 1
+        skipChecksum = false
     }
 
     private fun loadOrCreateKey(): KeyPair {
