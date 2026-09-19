@@ -55,7 +55,18 @@ class CloudflareTunnelService : Service() {
 
     private fun startTunnel(binary: File) {
         val home = File(filesDir, "cloudflared-home").apply { mkdirs() }
+        val runner = File(
+            applicationInfo.nativeLibraryDir,
+            "libcloudflared_runner.so"
+        )
+        if (!runner.isFile || !runner.canExecute()) {
+            throw IllegalStateException(
+                "Cloudflared runner is missing: " + runner.absolutePath
+            )
+        }
+
         val builder = ProcessBuilder(
+            runner.absolutePath,
             binary.absolutePath,
             "tunnel",
             "--no-autoupdate",
