@@ -210,11 +210,8 @@ class McpServer(
             )
         }
 
-        val capabilities = meta.optJSONObject("io.modelcontextprotocol/clientCapabilities")
-            ?: throw ProtocolException("Missing client capabilities")
-
-        if (capabilities.length() < 0) {
-            throw ProtocolException("Invalid client capabilities")
+        if (!meta.has("io.modelcontextprotocol/clientCapabilities")) {
+            throw ProtocolException("Missing client capabilities")
         }
 
         val headerMethod = headers["mcp-method"]
