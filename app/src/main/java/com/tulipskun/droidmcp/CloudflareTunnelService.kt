@@ -9,8 +9,6 @@ import android.os.IBinder
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
-import java.net.HttpURLConnection
-import java.net.URL
 import java.util.concurrent.Executors
 import java.util.regex.Pattern
 
@@ -50,7 +48,7 @@ class CloudflareTunnelService : Service() {
     }
 
     private fun startTunnel() {
-        val binary = ensureBinary()
+        val binary = ensureBundledBinary()
         val builder = ProcessBuilder(
             binary.absolutePath,
             "tunnel",
@@ -92,7 +90,7 @@ class CloudflareTunnelService : Service() {
         }
     }
 
-    private fun ensureBinary(): File {
+    private fun ensureBundledBinary(): File {
         val directory = File(filesDir, "cloudflared")
         if (!directory.exists() && !directory.mkdirs()) {
             throw IllegalStateException("Cannot create cloudflared directory")
@@ -101,59 +99,41 @@ class CloudflareTunnelService : Service() {
         val target = File(directory, CloudflareTunnelConfig.BINARY_NAME)
         if (target.isFile && target.length() > 1024 * 1024) {
             if (!target.setExecutable(true, false)) {
-                throw IllegalStateException("Cannot mark cloudflared executable")
+                throw IllegalStateException("Cannot mark bundled cloudflared executable")
             }
             return target
         }
 
         val partial = File(directory, target.name + ".part")
-        val connection = URL(CloudflareTunnelConfig.BINARY_URL)
-            .openConnection() as HttpURLConnection
 
-        connection.connectTimeout = 15000
-        connection.readTimeout = 120000
-        connection.instanceFollowRedirects = true
-        connection.requestMethod = "GET"
-
-        try {
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) {
-                throw IllegalStateException(
-                    "cloudflared download failed: HTTP " + connection.responseCode
-                )
-            }
-
-            connection.inputStream.use { input ->
-                partial.outputStream().use { output ->
-                    input.copyTo(output)
-                }
-            }
-
-            if (partial.length() <= 1024 * 1024) {
-                throw IllegalStateException("cloudflared download is invalid")
-            }
-
-            if (!partial.setExecutable(true, false)) {
-                throw IllegalStateException("Cannot mark cloudflared executable")
-            }
-
-            if (!partial.renameTo(target)) {
-                target.delete()
-                if (!partial.renameTo(target)) {
-                    throw IllegalStateException("Cannot install cloudflared binary")
-                }
-            }
-
-            if (!target.setExecutable(true, false)) {
-                throw IllegalStateException("Cannot mark cloudflared executable")
-            }
-
-            return target
-        } finally {
-            connection.disconnect()
-            if (partial.exists() && partial != target) {
-                partial.delete()
+        applicationContext.assets.open(CloudflareTunnelConfig.BINARY_NAME).use { input ->
+            partial.outputStream().use { output ->
+                input.copyTo(output)
             }
         }
+
+        if (partial.length() <= 1024 * 1024) {
+            partial.delete()
+            throw IllegalStateException("Bundled cloudflared binary is invalid")
+        }
+
+        if (!partial.setExecutable(true, false)) {
+            partial.delete()
+            throw IllegalStateException("Cannot mark bundled cloudflared executable")
+        }
+
+        if (!partial.renameTo(target)) {
+            target.delete()
+            if (!partial.renameTo(target)) {
+                throw IllegalStateException("Cannot install bundled cloudflared")
+            }
+        }
+
+        if (!target.setExecutable(true, false)) {
+            throw IllegalStateException("Cannot mark bundled cloudflared executable")
+        }
+
+        return target
     }
 
     private fun createNotificationChannel() {
@@ -212,7 +192,6 @@ class CloudflareTunnelService : Service() {
         process = null
         isRunning = false
         executor.shutdownNow()
-
         super.onDestroy()
     }
 
