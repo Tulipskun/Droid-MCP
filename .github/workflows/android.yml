@@ -29,7 +29,21 @@ jobs:
 
       - name: Install Android SDK packages
         run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"
+
+      - name: Build cloudflared runner
+        run: |
+          NDK="$ANDROID_HOME/ndk/27.2.12479018"
+          CLANG="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          mkdir -p app/src/main/jniLibs/{arm64-v8a,armeabi-v7a,x86_64,x86}
+          "$CLANG/aarch64-linux-android26-clang++" -O2 -fPIE -pie -Wl,--build-id=none native/cloudflared_runner.cpp -o app/src/main/jniLibs/arm64-v8a/libcloudflared_runner.so
+          "$CLANG/armv7a-linux-androideabi26-clang++" -O2 -fPIE -pie -Wl,--build-id=none native/cloudflared_runner.cpp -o app/src/main/jniLibs/armeabi-v7a/libcloudflared_runner.so
+          "$CLANG/x86_64-linux-android26-clang++" -O2 -fPIE -pie -Wl,--build-id=none native/cloudflared_runner.cpp -o app/src/main/jniLibs/x86_64/libcloudflared_runner.so
+          "$CLANG/i686-linux-android26-clang++" -O2 -fPIE -pie -Wl,--build-id=none native/cloudflared_runner.cpp -o app/src/main/jniLibs/x86/libcloudflared_runner.so
+          chmod 755 app/src/main/jniLibs/*/libcloudflared_runner.so
+          file app/src/main/jniLibs/*/libcloudflared_runner.so
+          readelf -h app/src/main/jniLibs/arm64-v8a/libcloudflared_runner.so | grep -E "Class:|Type:|Machine:"
+          readelf -l app/src/main/jniLibs/arm64-v8a/libcloudflared_runner.so | grep -E "INTERP|GNU_STACK"
 
       - name: Prepare stable debug signing
         run: |
