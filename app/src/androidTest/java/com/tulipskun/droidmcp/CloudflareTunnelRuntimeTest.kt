@@ -78,7 +78,7 @@ class CloudflareTunnelRuntimeTest {
             var responseCode = -1
             var lastError: Throwable? = null
 
-            repeat(10) {
+            for (attempt in 0 until 10) {
                 try {
                     val connection = URL("${quickUrl}/mcp").openConnection() as HttpURLConnection
                     connection.requestMethod = "POST"
@@ -100,7 +100,13 @@ class CloudflareTunnelRuntimeTest {
                     }
 
                     responseCode = connection.responseCode
-                    responseBody = connection.inputStream.bufferedReader().use { it.readText() }
+                    val responseStream =
+                        if (responseCode in 200..399) {
+                            connection.inputStream
+                        } else {
+                            connection.errorStream
+                        }
+                    responseBody = responseStream?.bufferedReader()?.use { it.readText() }
                     connection.disconnect()
 
                     if (responseCode == 200) {
