@@ -55,19 +55,18 @@ class CloudflareTunnelService : Service() {
 
     private fun startTunnel(binary: File) {
         val home = File(filesDir, "cloudflared-home").apply { mkdirs() }
-        val started = TermuxExec.start(
-            binary,
+        val started = ProcessBuilder(
+            binary.absolutePath,
             "tunnel",
             "--no-autoupdate",
             "--loglevel",
             "info",
             "--url",
-            CloudflareTunnelConfig.LOCAL_ORIGIN,
-            environment = mapOf(
-                "HOME" to home.absolutePath,
-                "TMPDIR" to cacheDir.absolutePath
-            )
-        )
+            CloudflareTunnelConfig.LOCAL_ORIGIN
+        ).redirectErrorStream(true).apply {
+            environment()["HOME"] = home.absolutePath
+            environment()["TMPDIR"] = cacheDir.absolutePath
+        }.start()
         process = started
         setState(true, null, null)
 
