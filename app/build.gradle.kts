@@ -20,8 +20,8 @@ android {
         applicationId = "com.tulipskun.droidmcp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.2.1"
+        versionCode = 4
+        versionName = "0.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -37,12 +37,6 @@ android {
         }
     }
 
-    packaging {
-        jniLibs {
-            useLegacyPackaging = true
-        }
-    }
-
     buildTypes {
         getByName("debug") {
             val stableKeystore = file("droid-mcp-debug.keystore")
@@ -54,6 +48,7 @@ android {
 }
 
 dependencies {
+    implementation("org.tukaani:xz:1.10")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test:rules:1.6.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
