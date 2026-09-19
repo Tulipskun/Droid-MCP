@@ -97,5 +97,39 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
             android:text="Start MCP Server" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="28dp"
+            android:text="Cloudflare Quick Tunnel"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tunnel_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Stopped"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/tunnel_endpoint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:text="https://&lt;random&gt;.trycloudflare.com/mcp"
+            android:textColor="#BDBDBD"
+            android:textSize="15sp" />
+
+        <Button
+            android:id="@+id/tunnel_toggle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Start Cloudflare Tunnel" />
     </LinearLayout>
 </ScrollView>

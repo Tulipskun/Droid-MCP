@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
@@ -14,7 +16,11 @@ import android.widget.TextView
 class MainActivity : Activity() {
     private lateinit var adbStatus: TextView
     private lateinit var mcpStatus: TextView
+    private lateinit var endpoint: TextView
+    private lateinit var tunnelStatus: TextView
+    private lateinit var tunnelEndpoint: TextView
     private lateinit var mcpToggle: Button
+    private lateinit var tunnelToggle: Button
     private lateinit var adbConnect: Button
     private lateinit var keyboardEnable: Button
     private lateinit var keyboardSwitch: Button
@@ -23,22 +29,35 @@ class MainActivity : Activity() {
         getSharedPreferences("droid_mcp", MODE_PRIVATE)
     }
 
+    private val uiHandler = Handler(Looper.getMainLooper())
+    private val tunnelPoll = object : Runnable {
+        override fun run() {
+            refreshTunnel()
+            if (CloudflareTunnelService.isRunning) {
+                uiHandler.postDelayed(this, 500)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
         adbStatus = findViewById(R.id.adb_status)
         mcpStatus = findViewById(R.id.mcp_status)
+        endpoint = findViewById(R.id.endpoint)
+        tunnelStatus = findViewById(R.id.tunnel_status)
+        tunnelEndpoint = findViewById(R.id.tunnel_endpoint)
         mcpToggle = findViewById(R.id.toggle)
+        tunnelToggle = findViewById(R.id.tunnel_toggle)
         adbConnect = findViewById(R.id.connect_adb)
         keyboardEnable = findViewById(R.id.enable_keyboard)
         keyboardSwitch = findViewById(R.id.switch_keyboard)
 
         if (
             Build.VERSION.SDK_INT >= 33 &&
-            checkSelfPermission(
-                Manifest.permission.POST_NOTIFICATIONS
-            ) != PackageManager.PERMISSION_GRANTED
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
         ) {
             requestPermissions(
                 arrayOf(Manifest.permission.POST_NOTIFICATIONS),
@@ -51,9 +70,7 @@ class MainActivity : Activity() {
         }
 
         keyboardEnable.setOnClickListener {
-            startActivity(
-                Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)
-            )
+            startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
         }
 
         keyboardSwitch.setOnClickListener {
@@ -62,40 +79,113 @@ class MainActivity : Activity() {
         }
 
         mcpToggle.setOnClickListener {
-            val intent = Intent(
-                this,
-                McpService::class.java
-            )
+            toggleMcp()
+        }
 
-            if (McpService.isRunning) {
-                stopService(intent)
-            } else if (Build.VERSION.SDK_INT >= 26) {
-                startForegroundService(intent)
-            } else {
-                startService(intent)
-            }
-
-            window.decorView.postDelayed(
-                { refreshMcp() },
-                300
-            )
+        tunnelToggle.setOnClickListener {
+            toggleTunnel()
         }
     }
 
     override fun onResume() {
         super.onResume()
         refreshMcp()
+        refreshTunnel()
+        uiHandler.post(tunnelPoll)
+    }
+
+    override fun onPause() {
+        uiHandler.removeCallbacks(tunnelPoll)
+        super.onPause()
+    }
+
+    private fun toggleMcp() {
+        val intent = Intent(this, McpService::class.java)
+
+        if (McpService.isRunning) {
+            stopService(intent)
+        } else if (Build.VERSION.SDK_INT >= 26) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+
+        uiHandler.postDelayed({ refreshMcp() }, 300)
+    }
+
+    private fun toggleTunnel() {
+        val intent = Intent(this, CloudflareTunnelService::class.java)
+
+        if (CloudflareTunnelService.isRunning) {
+            stopService(intent)
+        } else if (Build.VERSION.SDK_INT >= 26) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
+
+        uiHandler.postDelayed({ refreshTunnel() }, 300)
+    }
+
+    private fun refreshMcp() {
+        mcpStatus.text =
+            if (McpService.isRunning) {
+                "Running on 0.0.0.0:" + CloudflareTunnelConfig.LOCAL_PORT
+            } else {
+                "Stopped"
+            }
+
+        endpoint.text =
+            "http://<ANDROID_IP>:" +
+                CloudflareTunnelConfig.LOCAL_PORT +
+                "/mcp"
+
+        mcpToggle.text =
+            if (McpService.isRunning) {
+                "Stop MCP Server"
+            } else {
+                "Start MCP Server"
+            }
+    }
+
+    private fun refreshTunnel() {
+        val storedRunning = preferences.getBoolean("tunnel_running", false)
+        val storedUrl = preferences.getString("tunnel_url", null)
+        val storedError = preferences.getString("tunnel_error", null)
+        val running = CloudflareTunnelService.isRunning || storedRunning
+        val url = CloudflareTunnelService.quickUrl ?: storedUrl
+        val error = CloudflareTunnelService.lastError ?: storedError
+
+        tunnelStatus.text = when {
+            error != null -> error
+            url != null -> "Quick Tunnel active"
+            running -> "Starting Quick Tunnel..."
+            else -> "Stopped"
+        }
+
+        tunnelEndpoint.text =
+            if (url != null) {
+                url + "/mcp"
+            } else {
+                "https://<random>.trycloudflare.com/mcp"
+            }
+
+        tunnelToggle.text =
+            if (CloudflareTunnelService.isRunning) {
+                "Stop Cloudflare Tunnel"
+            } else {
+                "Start Cloudflare Tunnel"
+            }
     }
 
     private fun checkAdbConnection() {
         adbConnect.isEnabled = false
-        adbStatus.text = "Connecting to 127.0.0.1:5555..."
+        adbStatus.text =
+            "Connecting to 127.0.0.1:" + AdbTransport.ADB_PORT + "..."
 
         Thread {
             try {
-                val result = AdbBridge(
-                    preferences
-                ).checkConnection()
+                val result = AdbBridge(preferences).checkConnection()
 
                 runOnUiThread {
                     adbStatus.text = result
@@ -107,26 +197,9 @@ class MainActivity : Activity() {
                     adbStatus.text =
                         "Disconnected: " +
                             (error.message ?: "ADB connection failed")
-
                     adbConnect.isEnabled = true
                 }
             }
         }.start()
-    }
-
-    private fun refreshMcp() {
-        mcpStatus.text =
-            if (McpService.isRunning) {
-                "Running on 0.0.0.0:8787"
-            } else {
-                "Stopped"
-            }
-
-        mcpToggle.text =
-            if (McpService.isRunning) {
-                "Stop MCP Server"
-            } else {
-                "Start MCP Server"
-            }
     }
 }

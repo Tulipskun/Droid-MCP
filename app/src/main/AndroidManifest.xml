@@ -38,5 +38,13 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="local_mcp_server" />
         </service>
+        <service
+            android:name=".CloudflareTunnelService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="cloudflare_quick_tunnel" />
+        </service>
     </application>
 </manifest>
