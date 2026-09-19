@@ -43,9 +43,10 @@ class McpServer(
 
     private fun handle(socket: Socket) {
         socket.use { s ->
+            val output = BufferedOutputStream(s.getOutputStream())
+
             try {
                 val input = BufferedInputStream(s.getInputStream())
-                val output = BufferedOutputStream(s.getOutputStream())
                 val requestLine = readLine(input) ?: return
                 val parts = requestLine.split(" ")
 
@@ -63,20 +64,49 @@ class McpServer(
                     return
                 }
 
+                if (method == "OPTIONS") {
+                    writeResponse(
+                        output,
+                        204,
+                        null,
+                        null,
+                        cors = true
+                    )
+                    return
+                }
+
                 if (method != "POST") {
-                    writeResponse(output, 405, "application/json", error(null, -32601, "Method not allowed"))
+                    writeResponse(
+                        output,
+                        405,
+                        "application/json",
+                        error(null, -32601, "Method not allowed"),
+                        cors = true
+                    )
                     return
                 }
 
                 val origin = headers["origin"]
                 if (origin != null && origin != "null") {
-                    writeResponse(output, 403, "application/json", error(null, -32000, "Invalid Origin"))
+                    writeResponse(
+                        output,
+                        403,
+                        "application/json",
+                        error(null, -32000, "Invalid Origin"),
+                        cors = true
+                    )
                     return
                 }
 
                 val contentLength = headers["content-length"]?.toIntOrNull() ?: 0
                 if (contentLength <= 0 || contentLength > MAX_BODY) {
-                    writeResponse(output, 400, "application/json", error(null, -32600, "Invalid Content-Length"))
+                    writeResponse(
+                        output,
+                        400,
+                        "application/json",
+                        error(null, -32600, "Invalid Content-Length"),
+                        cors = true
+                    )
                     return
                 }
 
@@ -84,29 +114,61 @@ class McpServer(
                     String(readExactly(input, contentLength), StandardCharsets.UTF_8)
                 )
 
-                if (request.optString("method").startsWith("notifications/")) {
-                    writeResponse(output, 202, null, null)
+                val requestMethod = request.optString("method")
+
+                if (requestMethod.startsWith("notifications/")) {
+                    writeResponse(output, 202, null, null, cors = true)
                     return
                 }
 
                 validateRequestHeaders(headers, request)
 
+                val response = dispatch(request)
+
                 writeResponse(
                     output,
                     200,
                     "application/json",
-                    dispatch(request).toString()
+                    response.toString(),
+                    cors = true
+                )
+            } catch (e: HeaderMismatchException) {
+                writeResponse(
+                    output,
+                    400,
+                    "application/json",
+                    error(null, HEADER_MISMATCH, e.message ?: "Header mismatch"),
+                    cors = true
+                )
+            } catch (e: ProtocolException) {
+                writeResponse(
+                    output,
+                    400,
+                    "application/json",
+                    error(
+                        null,
+                        if (e.code != 0) e.code else -32602,
+                        e.message ?: "Protocol error"
+                    ),
+                    cors = true
                 )
             } catch (e: Throwable) {
-                writeResponseSafe(s, 500, error(null, -32603, e.message ?: "Internal error"))
+                writeResponse(
+                    output,
+                    500,
+                    "application/json",
+                    error(null, -32603, e.message ?: "Internal error"),
+                    cors = true
+                )
             }
         }
     }
 
     private fun readHeaders(input: BufferedInputStream): Map<String, String> {
         val headers = linkedMapOf<String, String>()
+
         while (true) {
-            val line = readLine(input) ?: throw IllegalArgumentException("Unexpected end of headers")
+            val line = readLine(input) ?: throw ProtocolException("Unexpected end of headers")
             if (line.isEmpty()) break
 
             val index = line.indexOf(':')
@@ -115,6 +177,7 @@ class McpServer(
                     line.substring(index + 1).trim()
             }
         }
+
         return headers
     }
 
@@ -123,7 +186,9 @@ class McpServer(
         request: JSONObject
     ) {
         val method = request.optString("method")
-        val params = request.optJSONObject("params") ?: JSONObject()
+        val params = request.optJSONObject("params")
+            ?: throw ProtocolException("Missing params")
+
         val meta = params.optJSONObject("_meta")
             ?: throw ProtocolException("Missing params._meta")
 
@@ -139,7 +204,17 @@ class McpServer(
         }
 
         if (bodyProtocol != PROTOCOL_VERSION) {
-            throw ProtocolException("Unsupported MCP protocol version: $bodyProtocol")
+            throw ProtocolException(
+                "Unsupported MCP protocol version: $bodyProtocol",
+                UNSUPPORTED_PROTOCOL_VERSION
+            )
+        }
+
+        val capabilities = meta.optJSONObject("io.modelcontextprotocol/clientCapabilities")
+            ?: throw ProtocolException("Missing client capabilities")
+
+        if (capabilities.length() < 0) {
+            throw ProtocolException("Invalid client capabilities")
         }
 
         val headerMethod = headers["mcp-method"]
@@ -150,6 +225,7 @@ class McpServer(
         if (method == "tools/call") {
             val name = params.optString("name")
             val headerName = headers["mcp-name"]
+
             if (name.isBlank() || headerName == null || headerName != name) {
                 throw HeaderMismatchException("Mcp-Name does not match tool name")
             }
@@ -162,23 +238,52 @@ class McpServer(
         val params = request.optJSONObject("params") ?: JSONObject()
 
         return when (method) {
-            "initialize" -> result(
+            "server/discover" -> result(
                 id,
                 JSONObject()
-                    .put("protocolVersion", PROTOCOL_VERSION)
-                    .put("capabilities", JSONObject().put("tools", JSONObject()))
+                    .put("resultType", "complete")
+                    .put("supportedVersions", JSONArray().put(PROTOCOL_VERSION))
                     .put(
-                        "serverInfo",
-                        JSONObject().put("name", "Droid-MCP").put("version", VERSION)
+                        "capabilities",
+                        JSONObject().put(
+                            "tools",
+                            JSONObject().put("listChanged", false)
+                        )
                     )
+                    .put(
+                        "instructions",
+                        "Droid-MCP exposes Android input and screenshot tools."
+                    )
+                    .put("ttlMs", 3600000)
+                    .put("cacheScope", "public")
             )
-            "ping" -> result(id, JSONObject())
-            "tools/list" -> result(id, JSONObject().put("tools", ToolCatalog.definitions()))
+
+            "ping" -> result(
+                id,
+                JSONObject().put("resultType", "complete")
+            )
+
+            "tools/list" -> result(
+                id,
+                JSONObject()
+                    .put("resultType", "complete")
+                    .put("tools", ToolCatalog.definitions())
+                    .put("ttlMs", 300000)
+                    .put("cacheScope", "public")
+            )
+
             "tools/call" -> {
                 val name = params.optString("name")
                 val args = params.optJSONObject("arguments") ?: JSONObject()
                 result(id, callTool(name, args))
             }
+
+            "initialize" -> error(
+                id,
+                -32601,
+                "initialize is not part of MCP 2026-07-28; use server/discover"
+            )
+
             else -> error(id, -32601, "Method not found: $method")
         }
     }
@@ -190,6 +295,7 @@ class McpServer(
                     executor.tap(args.getInt("x"), args.getInt("y"))
                     toolText("tap completed")
                 }
+
                 "swipe" -> {
                     executor.swipe(
                         args.getInt("x1"),
@@ -200,99 +306,139 @@ class McpServer(
                     )
                     toolText("swipe completed")
                 }
+
                 "gesture" -> {
                     executor.gesture(args.getJSONArray("points"))
                     toolText("gesture completed")
                 }
+
                 "multi_touch" -> {
                     executor.multiTouch(args.getJSONArray("pointers"))
                     toolText("multi_touch completed")
                 }
+
                 "key_event" -> {
                     executor.keyEvent(args.getInt("keycode"))
                     toolText("key_event completed")
                 }
+
                 "input_text" -> {
                     executor.inputText(args.getString("text"))
                     toolText("input_text completed")
                 }
+
                 "screenshot" -> {
                     val png = executor.screenshot()
+
                     JSONObject()
+                        .put("resultType", "complete")
                         .put(
                             "content",
                             JSONArray().put(
                                 JSONObject()
                                     .put("type", "image")
-                                    .put("data", Base64.encodeToString(png, Base64.NO_WRAP))
+                                    .put(
+                                        "data",
+                                        Base64.encodeToString(png, Base64.NO_WRAP)
+                                    )
                                     .put("mimeType", "image/png")
                             )
                         )
                         .put("isError", false)
                 }
+
                 else -> JSONObject()
-                    .put("content", JSONArray().put(toolTextItem("Unknown tool: $name")))
+                    .put("resultType", "complete")
+                    .put(
+                        "content",
+                        JSONArray().put(toolTextItem("Unknown tool: $name"))
+                    )
                     .put("isError", true)
             }
         } catch (e: Throwable) {
             JSONObject()
-                .put("content", JSONArray().put(toolTextItem(e.message ?: "Tool execution failed")))
+                .put("resultType", "complete")
+                .put(
+                    "content",
+                    JSONArray().put(
+                        toolTextItem(e.message ?: "Tool execution failed")
+                    )
+                )
                 .put("isError", true)
         }
     }
 
     private fun toolText(text: String): JSONObject =
         JSONObject()
+            .put("resultType", "complete")
             .put("content", JSONArray().put(toolTextItem(text)))
             .put("isError", false)
 
     private fun toolTextItem(text: String): JSONObject =
-        JSONObject().put("type", "text").put("text", text)
+        JSONObject()
+            .put("type", "text")
+            .put("text", text)
 
     private fun result(id: Any?, value: JSONObject): JSONObject =
         JSONObject()
             .put("jsonrpc", "2.0")
             .put("id", id)
-            .put("_meta", serverMeta())
-            .put("result", value)
+            .put("result", value.put("_meta", serverMeta()))
 
     private fun serverMeta(): JSONObject =
-        JSONObject()
-            .put("io.modelcontextprotocol/serverInfo", JSONObject()
+        JSONObject().put(
+            "io.modelcontextprotocol/serverInfo",
+            JSONObject()
                 .put("name", "Droid-MCP")
-                .put("version", VERSION))
+                .put("version", VERSION)
+        )
 
     private fun error(id: Any?, code: Int, message: String): JSONObject =
         JSONObject()
             .put("jsonrpc", "2.0")
             .put("id", id ?: JSONObject.NULL)
-            .put("error", JSONObject().put("code", code).put("message", message))
+            .put(
+                "error",
+                JSONObject()
+                    .put("code", code)
+                    .put("message", message)
+            )
 
     private fun readLine(input: BufferedInputStream): String? {
         val bytes = ArrayList<Byte>()
 
         while (true) {
             val value = input.read()
+
             if (value == -1) {
                 return if (bytes.isEmpty()) null else {
                     String(bytes.toByteArray(), StandardCharsets.UTF_8)
                 }
             }
+
             if (value == '\n'.code) break
             if (value != '\r'.code) bytes.add(value.toByte())
-            if (bytes.size > 8192) throw IllegalArgumentException("HTTP line too long")
+
+            if (bytes.size > 8192) {
+                throw IllegalArgumentException("HTTP line too long")
+            }
         }
 
         return String(bytes.toByteArray(), StandardCharsets.UTF_8)
     }
 
-    private fun readExactly(input: BufferedInputStream, length: Int): ByteArray {
+    private fun readExactly(
+        input: BufferedInputStream,
+        length: Int
+    ): ByteArray {
         val result = ByteArray(length)
         var offset = 0
 
         while (offset < length) {
             val count = input.read(result, offset, length - offset)
-            if (count < 0) throw IllegalArgumentException("Unexpected end of request body")
+            if (count < 0) {
+                throw IllegalArgumentException("Unexpected end of request body")
+            }
             offset += count
         }
 
@@ -303,13 +449,26 @@ class McpServer(
         output: BufferedOutputStream,
         status: Int,
         contentType: String?,
-        body: String?
+        body: String?,
+        cors: Boolean = false
     ) {
         val bytes = body?.toByteArray(StandardCharsets.UTF_8) ?: ByteArray(0)
+
         val headers = buildString {
-            append("HTTP/1.1 ").append(status).append(' ').append(statusText(status)).append("\r\n")
+            append("HTTP/1.1 ")
+                .append(status)
+                .append(' ')
+                .append(statusText(status))
+                .append("\r\n")
             append("Connection: close\r\n")
-            if (contentType != null) append("Content-Type: ").append(contentType).append("\r\n")
+            if (cors) {
+                append("Access-Control-Allow-Origin: null\r\n")
+                append("Access-Control-Allow-Methods: POST, OPTIONS\r\n")
+                append("Access-Control-Allow-Headers: Content-Type, MCP-Protocol-Version, Mcp-Method, Mcp-Name\r\n")
+            }
+            if (contentType != null) {
+                append("Content-Type: ").append(contentType).append("\r\n")
+            }
             append("Content-Length: ").append(bytes.size).append("\r\n")
             append("X-Content-Type-Options: nosniff\r\n")
             append("\r\n")
@@ -320,21 +479,10 @@ class McpServer(
         output.flush()
     }
 
-    private fun writeResponseSafe(socket: Socket, status: Int, body: JSONObject) {
-        try {
-            writeResponse(
-                BufferedOutputStream(socket.getOutputStream()),
-                status,
-                "application/json",
-                body.toString()
-            )
-        } catch (_: Throwable) {
-        }
-    }
-
     private fun statusText(status: Int): String = when (status) {
         200 -> "OK"
         202 -> "Accepted"
+        204 -> "No Content"
         400 -> "Bad Request"
         403 -> "Forbidden"
         404 -> "Not Found"
@@ -343,13 +491,18 @@ class McpServer(
         else -> "Error"
     }
 
-    private class ProtocolException(message: String) : RuntimeException(message)
+    private class ProtocolException(
+        message: String,
+        val code: Int = 0
+    ) : RuntimeException(message)
 
     private class HeaderMismatchException(message: String) : RuntimeException(message)
 
     companion object {
         const val PROTOCOL_VERSION = "2026-07-28"
         const val VERSION = "0.1.0"
+        private const val HEADER_MISMATCH = -32020
+        private const val UNSUPPORTED_PROTOCOL_VERSION = -32022
         private const val MAX_BODY = 1024 * 1024
     }
 }
