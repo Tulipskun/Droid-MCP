@@ -41,7 +41,12 @@ jobs:
 
           GOOS=android GOARCH=arm64 CGO_ENABLED=0             go build -trimpath -mod=mod             -ldflags "-X main.Version=$CLOUDFLARED_VERSION"             -o ../cloudflared-android-arm64             ./cmd/cloudflared
 
-          GOOS=android GOARCH=amd64 CGO_ENABLED=0             go build -trimpath -mod=mod             -ldflags "-X main.Version=$CLOUDFLARED_VERSION"             -o ../cloudflared-android-amd64             ./cmd/cloudflared
+          NDK="$ANDROID_SDK_ROOT/ndk/30.0.16248370"
+          export CC_FOR_TARGET="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android35-clang"
+          export CXX_FOR_TARGET="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android35-clang++"
+          export CGO_ENABLED=1
+          GOOS=android GOARCH=amd64 go env CGO_ENABLED CC_FOR_TARGET
+          GOOS=android GOARCH=amd64             go build -trimpath -mod=mod             -ldflags "-X main.Version=$CLOUDFLARED_VERSION"             -o ../cloudflared-android-amd64             ./cmd/cloudflared
 
           cd ..
 
