@@ -26,6 +26,14 @@ jobs:
         with:
           gradle-version: "8.10.2"
 
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: "platform-tools"
+
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
       - name: Build bundled cloudflared
         run: |
           git clone --depth 1 --branch "$CLOUDFLARED_VERSION" \
