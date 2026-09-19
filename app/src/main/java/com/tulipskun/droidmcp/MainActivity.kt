@@ -157,7 +157,9 @@ class MainActivity : Activity() {
         val url = CloudflareTunnelService.quickUrl ?: storedUrl
         val error = CloudflareTunnelService.lastError ?: storedError
 
-        tunnelInstallStatus.text = installStatus ?: "Not installed"\n\n        tunnelStatus.text = when {
+        tunnelInstallStatus.text = installStatus ?: "Not installed"
+
+        tunnelStatus.text = when {
             error != null -> error
             url != null -> "Quick Tunnel active"
             running -> "Starting Quick Tunnel..."
