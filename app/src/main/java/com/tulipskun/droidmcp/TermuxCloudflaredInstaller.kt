@@ -156,7 +156,6 @@ object TermuxCloudflaredInstaller {
     }
 
     private fun installPackage(
-        runner: File,
         directory: File,
         binary: File,
         versionFile: File,
