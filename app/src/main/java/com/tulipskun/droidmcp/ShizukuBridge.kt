@@ -6,6 +6,7 @@ import org.json.JSONArray
 import rikka.shizuku.Shizuku
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class ShizukuBridge(private val preferences: SharedPreferences) {
@@ -67,26 +68,50 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
 
             val stdout = ByteArrayOutputStream()
             val stderr = ByteArrayOutputStream()
+            val streamsClosed = CountDownLatch(2)
+
             val stdoutThread = Thread {
-                process.inputStream.use { it.copyTo(stdout) }
+                try {
+                    process.inputStream.use { it.copyTo(stdout) }
+                } finally {
+                    streamsClosed.countDown()
+                }
             }
+
             val stderrThread = Thread {
-                process.errorStream.use { it.copyTo(stderr) }
+                try {
+                    process.errorStream.use { it.copyTo(stderr) }
+                } finally {
+                    streamsClosed.countDown()
+                }
             }
 
             stdoutThread.start()
             stderrThread.start()
 
             try {
-                if (!process.waitFor(COMMAND_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                if (
+                    !streamsClosed.await(
+                        COMMAND_TIMEOUT_SECONDS,
+                        TimeUnit.SECONDS
+                    )
+                ) {
                     process.destroy()
-                    throw IllegalStateException("Shizuku command timed out")
+                    throw IllegalStateException(
+                        "Shizuku command timed out"
+                    )
                 }
 
-                stdoutThread.join(COMMAND_STREAM_JOIN_MILLIS)
-                stderrThread.join(COMMAND_STREAM_JOIN_MILLIS)
+                val exitCode = try {
+                    process.waitFor()
+                    process.exitValue()
+                } catch (error: Throwable) {
+                    throw IllegalStateException(
+                        error.message ?: "Unable to get Shizuku process exit code",
+                        error
+                    )
+                }
 
-                val exitCode = process.exitValue()
                 val stdoutBytes = stdout.toByteArray()
                 val stderrBytes = stderr.toByteArray()
 
