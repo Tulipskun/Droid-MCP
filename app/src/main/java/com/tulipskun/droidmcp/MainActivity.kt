@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.view.inputmethod.InputMethodManager
+import android.provider.Settings
 import android.widget.Button
 import android.widget.TextView
 
@@ -44,6 +45,15 @@ class MainActivity : Activity() {
         adbConnect.setOnClickListener {
             checkAdbConnection()
         }
+
+        findViewById<Button>(R.id.enable_keyboard)
+            .setOnClickListener {
+                startActivity(
+                    Intent(
+                        Settings.ACTION_INPUT_METHOD_SETTINGS
+                    )
+                )
+            }
 
         findViewById<Button>(R.id.switch_keyboard)
             .setOnClickListener {
