@@ -296,7 +296,7 @@ internal class AdbTransport(
             .modInverse(BigInteger.ONE.shiftLeft(32))
             .negate()
             .and(BigInteger.valueOf(0xffffffffL))
-            .intValue()
+            .toInt()
 
         val buffer = ByteBuffer
             .allocate(
