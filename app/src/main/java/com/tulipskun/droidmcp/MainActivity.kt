@@ -2,6 +2,8 @@ package com.tulipskun.droidmcp
 
 import android.Manifest
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -11,6 +13,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
+import android.widget.Toast
 import android.widget.TextView
 import rikka.shizuku.Shizuku
 
@@ -20,6 +23,7 @@ class MainActivity : Activity() {
     private lateinit var endpoint: TextView
     private lateinit var tunnelStatus: TextView
     private lateinit var tunnelEndpoint: TextView
+    private lateinit var copyTunnelUrl: Button
     private lateinit var tunnelInstallStatus: TextView
     private lateinit var mcpToggle: Button
     private lateinit var tunnelToggle: Button
@@ -55,6 +59,7 @@ class MainActivity : Activity() {
         endpoint = findViewById(R.id.endpoint)
         tunnelStatus = findViewById(R.id.tunnel_status)
         tunnelEndpoint = findViewById(R.id.tunnel_endpoint)
+        copyTunnelUrl = findViewById(R.id.copy_tunnel_url)
         tunnelInstallStatus = findViewById(R.id.tunnel_install_status)
         mcpToggle = findViewById(R.id.toggle)
         tunnelToggle = findViewById(R.id.tunnel_toggle)
@@ -96,6 +101,10 @@ class MainActivity : Activity() {
 
         tunnelToggle.setOnClickListener {
             toggleTunnel()
+        }
+
+        copyTunnelUrl.setOnClickListener {
+            copyTunnelUrl()
         }
     }
 
@@ -222,6 +231,21 @@ class MainActivity : Activity() {
             } else {
                 "Start MCP Server"
             }
+    }
+
+    private fun copyTunnelUrl() {
+        val url = CloudflareTunnelService.quickUrl
+            ?: preferences.getString("tunnel_url", null)
+
+        if (url == null) {
+            Toast.makeText(this, "Cloudflare Tunnel URL is not ready", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val endpoint = url + "/mcp"
+        val clipboard = getSystemService(ClipboardManager::class.java)
+        clipboard.setPrimaryClip(ClipData.newPlainText("Droid-MCP URL", endpoint))
+        Toast.makeText(this, "MCP URL copied", Toast.LENGTH_SHORT).show()
     }
 
     private fun refreshTunnel() {

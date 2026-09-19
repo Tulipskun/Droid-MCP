@@ -135,6 +135,13 @@
             android:textSize="15sp" />
 
         <Button
+            android:id="@+id/copy_tunnel_url"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="Copy MCP URL" />
+
+        <Button
             android:id="@+id/tunnel_toggle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
