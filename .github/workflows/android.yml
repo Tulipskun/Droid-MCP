@@ -29,7 +29,7 @@ jobs:
 
       - name: Install Android SDK packages
         run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "emulator" "system-images;android-35;google_apis;x86_64"
 
       - name: Prepare stable debug signing
         run: |
@@ -63,6 +63,14 @@ jobs:
 
       - name: Build
         run: gradle assembleDebug
+
+      - name: Run Android runtime test
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          script: gradle connectedDebugAndroidTest
 
       - name: Verify APK
         run: |
