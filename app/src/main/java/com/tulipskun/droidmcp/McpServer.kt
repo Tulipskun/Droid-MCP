@@ -12,7 +12,7 @@ import java.nio.charset.StandardCharsets
 
 class McpServer(
     private val port: Int,
-    private val executor: AdbBridge
+    private val executor: ShizukuBridge
 ) {
     private var serverSocket: ServerSocket? = null
     @Volatile private var running = false
@@ -68,13 +68,7 @@ class McpServer(
                 }
 
                 if (method == "OPTIONS") {
-                    writeResponse(
-                        output,
-                        204,
-                        null,
-                        null,
-                        cors = true
-                    )
+                    writeResponse(output, 204, null, null, cors = true)
                     return
                 }
 
