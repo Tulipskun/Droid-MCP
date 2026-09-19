@@ -87,7 +87,7 @@ internal class AdbTransport(
                                     signToken(packet.payload, key)
                                 )
                                 signatureSent = true
-                            } else if (!publicKeySent) {
+                            } else {
                                 sendPacket(
                                     A_AUTH,
                                     AUTH_PUBLIC_KEY,
@@ -95,13 +95,6 @@ internal class AdbTransport(
                                     publicKeyPayload(key)
                                 )
                                 publicKeySent = true
-                            } else {
-                                sendPacket(
-                                    A_AUTH,
-                                    AUTH_SIGNATURE,
-                                    0,
-                                    signToken(packet.payload, key)
-                                )
                             }
                         }
 
@@ -290,10 +283,20 @@ internal class AdbTransport(
 
     private fun publicKeyPayload(key: KeyPair): ByteArray {
         val publicKey = key.public as RSAPublicKey
-        val modulus = littleEndianFixed(
-            publicKey.modulus,
+        val modulus = publicKey.modulus
+        val wordCount = RSA_MODULUS_BYTES / 4
+        val modulusBytes = littleEndianFixed(
+            modulus,
             RSA_MODULUS_BYTES
         )
+        val r = BigInteger.ONE.shiftLeft(wordCount * 32)
+        val rr = r.multiply(r).mod(modulus)
+        val n0Inverse = modulus
+            .and(BigInteger.valueOf(0xffffffffL))
+            .modInverse(BigInteger.ONE.shiftLeft(32))
+            .negate()
+            .and(BigInteger.valueOf(0xffffffffL))
+            .intValue()
 
         val buffer = ByteBuffer
             .allocate(
@@ -304,10 +307,10 @@ internal class AdbTransport(
             )
             .order(ByteOrder.LITTLE_ENDIAN)
 
-        buffer.putInt(RSA_MODULUS_BYTES / 4)
-        buffer.putInt(0)
-        buffer.put(modulus)
-        buffer.put(ByteArray(RSA_MODULUS_BYTES))
+        buffer.putInt(wordCount)
+        buffer.putInt(n0Inverse)
+        buffer.put(modulusBytes)
+        buffer.put(littleEndianFixed(rr, RSA_MODULUS_BYTES))
         buffer.putInt(publicKey.publicExponent.intValueExact())
 
         val encoded = Base64.encodeToString(
