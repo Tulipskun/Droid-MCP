@@ -17,16 +17,19 @@ class McpServer(
     private var serverSocket: ServerSocket? = null
     @Volatile private var running = false
 
+    @Synchronized
     fun start() {
         if (running) return
+
+        val socket = ServerSocket(port, 50, InetAddress.getByName("0.0.0.0"))
+        serverSocket = socket
         running = true
 
         Thread {
             try {
-                serverSocket = ServerSocket(port, 50, InetAddress.getByName("0.0.0.0"))
                 while (running) {
-                    val socket = serverSocket?.accept() ?: break
-                    Thread { handle(socket) }.start()
+                    val client = socket.accept()
+                    Thread { handle(client) }.start()
                 }
             } catch (_: Throwable) {
             } finally {
@@ -148,7 +151,8 @@ class McpServer(
                     error(
                         null,
                         if (e.code != 0) e.code else -32602,
-                        e.message ?: "Protocol error"
+                        e.message ?: "Protocol error",
+                        e.data
                     ),
                     cors = true
                 )
@@ -206,7 +210,10 @@ class McpServer(
         if (bodyProtocol != PROTOCOL_VERSION) {
             throw ProtocolException(
                 "Unsupported MCP protocol version: $bodyProtocol",
-                UNSUPPORTED_PROTOCOL_VERSION
+                UNSUPPORTED_PROTOCOL_VERSION,
+                JSONObject()
+                    .put("supported", JSONArray().put(PROTOCOL_VERSION))
+                    .put("requested", bodyProtocol)
             )
         }
 
@@ -253,11 +260,6 @@ class McpServer(
                     )
                     .put("ttlMs", 3600000)
                     .put("cacheScope", "public")
-            )
-
-            "ping" -> result(
-                id,
-                JSONObject().put("resultType", "complete")
             )
 
             "tools/list" -> result(
@@ -390,16 +392,25 @@ class McpServer(
                 .put("version", VERSION)
         )
 
-    private fun error(id: Any?, code: Int, message: String): JSONObject =
-        JSONObject()
+    private fun error(
+        id: Any?,
+        code: Int,
+        message: String,
+        data: JSONObject? = null
+    ): JSONObject {
+        val error = JSONObject()
+            .put("code", code)
+            .put("message", message)
+
+        if (data != null) {
+            error.put("data", data)
+        }
+
+        return JSONObject()
             .put("jsonrpc", "2.0")
             .put("id", id ?: JSONObject.NULL)
-            .put(
-                "error",
-                JSONObject()
-                    .put("code", code)
-                    .put("message", message)
-            )
+            .put("error", error)
+    }
 
     private fun readLine(input: BufferedInputStream): String? {
         val bytes = ArrayList<Byte>()
@@ -490,7 +501,8 @@ class McpServer(
 
     private class ProtocolException(
         message: String,
-        val code: Int = 0
+        val code: Int = 0,
+        val data: JSONObject? = null
     ) : RuntimeException(message)
 
     private class HeaderMismatchException(message: String) : RuntimeException(message)
