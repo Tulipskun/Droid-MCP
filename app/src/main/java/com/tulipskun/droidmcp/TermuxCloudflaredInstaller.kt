@@ -41,14 +41,6 @@ object TermuxCloudflaredInstaller {
         val versionFile = File(directory, "version")
         val installedVersion = versionFile.takeIf { it.isFile }?.readText()?.trim()
         val architecture = resolveRepositoryArchitecture()
-        val runner = cloudflaredRunner(context)
-
-        if (!runner.isFile || !runner.canExecute()) {
-            throw IllegalStateException(
-                "Cloudflared runner is missing: " + runner.absolutePath
-            )
-        }
-
         if (binary.isFile && binary.length() > 1024 * 1024) {
             try {
                 val info = fetchPackageInfo(architecture)
