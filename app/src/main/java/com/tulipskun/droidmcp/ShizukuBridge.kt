@@ -12,10 +12,6 @@ import java.util.concurrent.TimeUnit
 class ShizukuBridge(private val preferences: SharedPreferences) {
     private val lock = Any()
 
-    @Volatile
-    private var eventDevice: String? =
-        preferences.getString("event_device", null)
-
     fun checkConnection(): String {
         ensureReady()
 
@@ -226,93 +222,213 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
             "pointers must not be empty"
         }
 
-        val device = resolveEventDevice()
-        val commands = ArrayList<String>()
+        synchronized(lock) {
+            ensureReady()
 
-        for (i in 0 until pointers.length()) {
-            val pointer = pointers.getJSONObject(i)
-            val id = pointer.getInt("id")
-            val points = pointer.getJSONArray("points")
+            val count = pointers.length()
+            val pointerIds = IntArray(count)
+            val pointArrays = arrayOfNulls<JSONArray>(count)
 
-            require(points.length() > 0) {
-                "pointer points must not be empty"
-            }
-
-            val first = points.getJSONObject(0)
-
-            commands +=
-                "sendevent " + device + " 3 47 " + id
-            commands +=
-                "sendevent " + device + " 3 57 " + id
-            commands +=
-                "sendevent " + device + " 3 53 " +
-                    first.getInt("x")
-            commands +=
-                "sendevent " + device + " 3 54 " +
-                    first.getInt("y")
-        }
-
-        commands +=
-            "sendevent " + device + " 0 0 0"
-
-        val maxPoints =
-            (0 until pointers.length()).maxOf {
-                pointers
-                    .getJSONObject(it)
-                    .getJSONArray("points")
-                    .length()
-            }
-
-        for (step in 1 until maxPoints) {
-            for (i in 0 until pointers.length()) {
+            for (i in 0 until count) {
                 val pointer = pointers.getJSONObject(i)
+                val id = pointer.getInt("id")
+                require(id >= 0) {
+                    "pointer id must be >= 0"
+                }
+
                 val points = pointer.getJSONArray("points")
-
-                if (step >= points.length()) {
-                    continue
+                require(points.length() > 0) {
+                    "pointer points must not be empty"
                 }
 
-                val point = points.getJSONObject(step)
-                val delay = point.getLong("delay_ms")
-
-                require(delay >= 0) {
-                    "delay_ms must be >= 0"
-                }
-
-                if (delay > 0) {
-                    commands +=
-                        "sleep " + delay / 1000.0
-                }
-
-                commands +=
-                    "sendevent " + device + " 3 47 " +
-                        pointer.getInt("id")
-                commands +=
-                    "sendevent " + device + " 3 53 " +
-                        point.getInt("x")
-                commands +=
-                    "sendevent " + device + " 3 54 " +
-                        point.getInt("y")
+                pointerIds[i] = id
+                pointArrays[i] = points
             }
 
-            commands +=
-                "sendevent " + device + " 0 0 0"
+            val positions = Array(count) { IntArray(2) }
+
+            for (i in 0 until count) {
+                val point = pointArrays[i]!!.getJSONObject(0)
+                positions[i][0] = point.getInt("x")
+                positions[i][1] = point.getInt("y")
+            }
+
+            val downTime = SystemClock.uptimeMillis()
+
+            injectMotionEvent(
+                createMotionEvent(
+                    downTime,
+                    MotionEvent.ACTION_DOWN,
+                    pointerIds.copyOfRange(0, 1),
+                    positions.copyOfRange(0, 1)
+                )
+            )
+
+            for (i in 1 until count) {
+                injectMotionEvent(
+                    createMotionEvent(
+                        downTime,
+                        MotionEvent.ACTION_POINTER_DOWN or
+                            (i shl MotionEvent.ACTION_POINTER_INDEX_SHIFT),
+                        pointerIds.copyOfRange(0, i + 1),
+                        positions.copyOfRange(0, i + 1)
+                    )
+                )
+            }
+
+            val maxPoints = (0 until count).maxOf {
+                pointArrays[it]!!.length()
+            }
+
+            for (step in 1 until maxPoints) {
+                var delayMs = 0L
+
+                for (i in 0 until count) {
+                    val points = pointArrays[i]!!
+                    if (step >= points.length()) {
+                        continue
+                    }
+
+                    val point = points.getJSONObject(step)
+                    val delay = point.getLong("delay_ms")
+                    require(delay >= 0) {
+                        "delay_ms must be >= 0"
+                    }
+
+                    delayMs = maxOf(delayMs, delay)
+                    positions[i][0] = point.getInt("x")
+                    positions[i][1] = point.getInt("y")
+                }
+
+                if (delayMs > 0) {
+                    Thread.sleep(delayMs)
+                }
+
+                injectMotionEvent(
+                    createMotionEvent(
+                        downTime,
+                        MotionEvent.ACTION_MOVE,
+                        pointerIds,
+                        positions
+                    )
+                )
+            }
+
+            for (i in count - 1 downTo 1) {
+                injectMotionEvent(
+                    createMotionEvent(
+                        downTime,
+                        MotionEvent.ACTION_POINTER_UP or
+                            (i shl MotionEvent.ACTION_POINTER_INDEX_SHIFT),
+                        pointerIds,
+                        positions
+                    )
+                )
+            }
+
+            injectMotionEvent(
+                createMotionEvent(
+                    downTime,
+                    MotionEvent.ACTION_UP,
+                    pointerIds.copyOfRange(0, 1),
+                    positions.copyOfRange(0, 1)
+                )
+            )
+        }
+    }
+
+    private fun createMotionEvent(
+        downTime: Long,
+        action: Int,
+        pointerIds: IntArray,
+        positions: Array<IntArray>
+    ): MotionEvent {
+        val properties = Array(pointerIds.size) {
+            PointerProperties().apply {
+                id = pointerIds[it]
+                toolType = MotionEvent.TOOL_TYPE_FINGER
+            }
         }
 
-        for (i in 0 until pointers.length()) {
-            val pointer = pointers.getJSONObject(i)
-
-            commands +=
-                "sendevent " + device + " 3 47 " +
-                    pointer.getInt("id")
-            commands +=
-                "sendevent " + device + " 3 57 -1"
+        val coords = Array(pointerIds.size) {
+            PointerCoords().apply {
+                x = positions[it][0].toFloat()
+                y = positions[it][1].toFloat()
+                pressure = 1f
+                size = 1f
+            }
         }
 
-        commands +=
-            "sendevent " + device + " 0 0 0"
+        return MotionEvent.obtain(
+            downTime,
+            SystemClock.uptimeMillis(),
+            action,
+            pointerIds.size,
+            properties,
+            coords,
+            0,
+            0,
+            1f,
+            1f,
+            0,
+            0,
+            InputDevice.SOURCE_TOUCHSCREEN,
+            0
+        ).apply {
+            setDisplayId(0)
+        }
+    }
 
-        runCommand(commands.joinToString("; "))
+    private fun injectMotionEvent(event: MotionEvent) {
+        var recycled = false
+        try {
+            val service = SystemServiceHelper.getSystemService("input")
+                ?: throw IllegalStateException(
+                    "Android input service is unavailable"
+                )
+
+            val transactionCode =
+                SystemServiceHelper.getTransactionCode(
+                    "android.hardware.input.IInputManager$Stub",
+                    "injectInputEvent"
+                ) ?: throw IllegalStateException(
+                    "IInputManager.injectInputEvent transaction not found"
+                )
+
+            val binder = ShizukuBinderWrapper(service)
+            val data = Parcel.obtain()
+            val reply = Parcel.obtain()
+
+            try {
+                data.writeInterfaceToken(
+                    "android.hardware.input.IInputManager"
+                )
+                data.writeTypedObject(event, 0)
+                data.writeInt(INJECT_INPUT_EVENT_MODE_WAIT_FOR_RESULT)
+
+                if (!binder.transact(transactionCode, data, reply, 0)) {
+                    throw IllegalStateException(
+                        "IInputManager transaction failed"
+                    )
+                }
+
+                reply.readException()
+
+                if (!reply.readBoolean()) {
+                    throw IllegalStateException(
+                        "Android rejected input event injection"
+                    )
+                }
+            } finally {
+                data.recycle()
+                reply.recycle()
+            }
+        } finally {
+            if (!recycled) {
+                event.recycle()
+                recycled = true
+            }
+        }
     }
 
     fun keyEvent(keycode: Int) {
@@ -337,48 +453,6 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
 
     fun screenshot(): ByteArray {
         return runCommand("screencap -p").stdout
-    }
-
-    private fun resolveEventDevice(): String {
-        synchronized(lock) {
-            eventDevice?.let { return it }
-
-            val output = String(
-                runCommand("getevent -pl").stdout,
-                StandardCharsets.UTF_8
-            )
-
-            val blocks = output.split(
-                Regex("(?=add device)")
-            )
-
-            for (block in blocks) {
-                if (
-                    "ABS_MT_POSITION_X" in block &&
-                    "ABS_MT_POSITION_Y" in block
-                ) {
-                    val match = Regex(
-                        "/dev/input/event\\d+"
-                    ).find(block)
-
-                    if (match != null) {
-                        return match.value.also {
-                            eventDevice = it
-                            preferences.edit()
-                                .putString(
-                                    "event_device",
-                                    it
-                                )
-                                .apply()
-                        }
-                    }
-                }
-            }
-
-            throw IllegalStateException(
-                "No multitouch event device found"
-            )
-        }
     }
 
     fun close() {
