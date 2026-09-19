@@ -19,6 +19,7 @@ class MainActivity : Activity() {
     private lateinit var endpoint: TextView
     private lateinit var tunnelStatus: TextView
     private lateinit var tunnelEndpoint: TextView
+    private lateinit var tunnelInstallStatus: TextView
     private lateinit var mcpToggle: Button
     private lateinit var tunnelToggle: Button
     private lateinit var adbConnect: Button
@@ -48,6 +49,7 @@ class MainActivity : Activity() {
         endpoint = findViewById(R.id.endpoint)
         tunnelStatus = findViewById(R.id.tunnel_status)
         tunnelEndpoint = findViewById(R.id.tunnel_endpoint)
+        tunnelInstallStatus = findViewById(R.id.tunnel_install_status)
         mcpToggle = findViewById(R.id.toggle)
         tunnelToggle = findViewById(R.id.tunnel_toggle)
         adbConnect = findViewById(R.id.connect_adb)
@@ -149,6 +151,7 @@ class MainActivity : Activity() {
     }
 
     private fun refreshTunnel() {
+        val installStatus = preferences.getString("cloudflared_install_status", null)
         val storedRunning = preferences.getBoolean("tunnel_running", false)
         val storedUrl = preferences.getString("tunnel_url", null)
         val storedError = preferences.getString("tunnel_error", null)
@@ -156,7 +159,7 @@ class MainActivity : Activity() {
         val url = CloudflareTunnelService.quickUrl ?: storedUrl
         val error = CloudflareTunnelService.lastError ?: storedError
 
-        tunnelStatus.text = when {
+        tunnelInstallStatus.text = installStatus ?: "Not installed"\n\n        tunnelStatus.text = when {
             error != null -> error
             url != null -> "Quick Tunnel active"
             running -> "Starting Quick Tunnel..."
