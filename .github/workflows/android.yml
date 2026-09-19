@@ -110,7 +110,7 @@ jobs:
 
       - name: Dump emulator logs
         if: always()
-        run: adb logcat -d -v time | tail -n 2000 || true
+        run: timeout 20s adb logcat -d -v time | tail -n 2000 || true
 
       - name: Fail runtime test if needed
         if: steps.runtime_test.outcome != 'success'
