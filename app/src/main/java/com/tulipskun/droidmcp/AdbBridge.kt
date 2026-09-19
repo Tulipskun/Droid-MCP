@@ -7,6 +7,22 @@ import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
 
 class AdbBridge(private val preferences: android.content.SharedPreferences) {
+    private companion object {
+        const val ADB_SERIAL = "127.0.0.1:5555"
+    }
+
+    @Synchronized
+    private fun ensureAdbConnection() {
+        val state = runOneShotAllowFailure("adb", "-s", ADB_SERIAL, "get-state").trim()
+        if (state == "device") return
+
+        runOneShotAllowFailure("adb", "connect", ADB_SERIAL)
+
+        val connectedState = runOneShotAllowFailure("adb", "-s", ADB_SERIAL, "get-state").trim()
+        if (connectedState != "device") {
+            throw IllegalStateException("ADB device $ADB_SERIAL is unavailable")
+        }
+    }
     private var shell: Process? = null
     @Volatile private var eventDevice: String? = preferences.getString("event_device", null)
     private var shellInput: java.io.BufferedWriter? = null
@@ -17,8 +33,9 @@ class AdbBridge(private val preferences: android.content.SharedPreferences) {
         if (shell?.isAlive == true && shellInput != null && shellOutput != null) return
 
         closeShell()
+        ensureAdbConnection()
 
-        shell = ProcessBuilder("adb", "shell")
+        shell = ProcessBuilder("adb", "-s", ADB_SERIAL, "shell")
             .redirectErrorStream(true)
             .start()
 
@@ -157,7 +174,9 @@ class AdbBridge(private val preferences: android.content.SharedPreferences) {
     }
 
     fun screenshot(): ByteArray {
-        val process = ProcessBuilder("adb", "exec-out", "screencap", "-p")
+        ensureAdbConnection()
+
+        val process = ProcessBuilder("adb", "-s", ADB_SERIAL, "exec-out", "screencap", "-p")
             .redirectErrorStream(false)
             .start()
 
@@ -177,7 +196,9 @@ class AdbBridge(private val preferences: android.content.SharedPreferences) {
     private fun resolveEventDevice(): String {
         eventDevice?.let { return it }
 
-        val output = runOneShot("adb", "shell", "getevent", "-pl")
+        ensureAdbConnection()
+
+        val output = runOneShot("adb", "-s", ADB_SERIAL, "shell", "getevent", "-pl")
         val blocks = output.split(Regex("(?=add device)"))
 
         for (block in blocks) {
@@ -193,6 +214,16 @@ class AdbBridge(private val preferences: android.content.SharedPreferences) {
         }
 
         throw IllegalStateException("No multitouch event device found")
+    }
+
+    private fun runOneShotAllowFailure(vararg command: String): String {
+        val process = ProcessBuilder(*command)
+            .redirectErrorStream(true)
+            .start()
+
+        val output = process.inputStream.bufferedReader().readText()
+        process.waitFor()
+        return output
     }
 
     private fun runOneShot(vararg command: String): String {
