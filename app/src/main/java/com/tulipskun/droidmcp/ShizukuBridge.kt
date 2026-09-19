@@ -65,25 +65,34 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
                     null
                 ) as Process
 
+            val stdout = ByteArrayOutputStream()
+            val stderr = ByteArrayOutputStream()
+            val stdoutThread = Thread {
+                process.inputStream.use { it.copyTo(stdout) }
+            }
+            val stderrThread = Thread {
+                process.errorStream.use { it.copyTo(stderr) }
+            }
+
+            stdoutThread.start()
+            stderrThread.start()
+
             try {
                 if (!process.waitFor(COMMAND_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                     process.destroy()
-                    throw IllegalStateException(
-                        "Shizuku command timed out"
-                    )
+                    throw IllegalStateException("Shizuku command timed out")
                 }
 
-                val stdout = process.inputStream.use {
-                    it.readBytes()
-                }
+                stdoutThread.join(COMMAND_STREAM_JOIN_MILLIS)
+                stderrThread.join(COMMAND_STREAM_JOIN_MILLIS)
 
-                val stderr = process.errorStream.use {
-                    it.readBytes()
-                }
+                val exitCode = process.exitValue()
+                val stdoutBytes = stdout.toByteArray()
+                val stderrBytes = stderr.toByteArray()
 
-                if (process.exitValue() != 0) {
+                if (exitCode != 0) {
                     val message = String(
-                        stderr,
+                        stderrBytes,
                         StandardCharsets.UTF_8
                     ).trim()
 
@@ -91,17 +100,26 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
                         if (message.isNotEmpty()) {
                             message
                         } else {
-                            "Shizuku command failed with exit code " +
-                                process.exitValue()
+                            "Shizuku command failed with exit code " + exitCode
                         }
                     )
                 }
 
-                return CommandResult(stdout, stderr)
+                return CommandResult(stdoutBytes, stderrBytes)
             } finally {
                 try {
                     process.destroy()
                 } catch (_: Throwable) {
+                }
+                try {
+                    stdoutThread.join(COMMAND_STREAM_JOIN_MILLIS)
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                }
+                try {
+                    stderrThread.join(COMMAND_STREAM_JOIN_MILLIS)
+                } catch (_: InterruptedException) {
+                    Thread.currentThread().interrupt()
                 }
             }
         }
@@ -348,5 +366,6 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
 
     companion object {
         private const val COMMAND_TIMEOUT_SECONDS = 15L
+        private const val COMMAND_STREAM_JOIN_MILLIS = 1000L
     }
 }
