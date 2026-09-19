@@ -53,16 +53,16 @@ object TermuxCloudflaredInstaller {
             try {
                 val info = fetchPackageInfo(architecture)
                 if (installedVersion == info.version) {
-                    verifyBinary(runner, binary)
+                    verifyBinary(binary)
                     setInstallState(context, "cloudflared ready")
                     return binary
                 }
                 setInstallState(context, "Updating cloudflared")
-                installPackage(runner, directory, binary, versionFile, info)
+                installPackage(directory, binary, versionFile, info)
                 return binary
             } catch (error: Throwable) {
                 if (!installedVersion.isNullOrBlank()) {
-                    verifyBinary(runner, binary)
+                    verifyBinary(binary)
                     setInstallState(context, "cloudflared ready")
                     return binary
                 }
@@ -72,7 +72,7 @@ object TermuxCloudflaredInstaller {
 
         val info = fetchPackageInfo(architecture)
         setInstallState(context, "Installing cloudflared")
-        installPackage(runner, directory, binary, versionFile, info)
+        installPackage(directory, binary, versionFile, info)
         setInstallState(context, "cloudflared ready")
         return binary
     }
