@@ -48,7 +48,7 @@ class CloudflareTunnelService : Service() {
     }
 
     private fun startTunnel() {
-        val binary = ensureBundledBinary()
+        val binary = bundledBinary()
         val builder = ProcessBuilder(
             binary.absolutePath,
             "tunnel",
@@ -90,50 +90,18 @@ class CloudflareTunnelService : Service() {
         }
     }
 
-    private fun ensureBundledBinary(): File {
-        val directory = File(filesDir, "cloudflared")
-        if (!directory.exists() && !directory.mkdirs()) {
-            throw IllegalStateException("Cannot create cloudflared directory")
+    private fun bundledBinary(): File {
+        val binary = File(applicationInfo.nativeLibraryDir, CloudflareTunnelConfig.BINARY_NAME)
+
+        if (!binary.isFile || binary.length() <= 1024 * 1024) {
+            throw IllegalStateException("Bundled cloudflared binary is missing")
         }
 
-        val target = File(directory, CloudflareTunnelConfig.BINARY_NAME)
-        if (target.isFile && target.length() > 1024 * 1024) {
-            if (!target.setExecutable(true, false)) {
-                throw IllegalStateException("Cannot mark bundled cloudflared executable")
-            }
-            return target
+        if (!binary.canExecute()) {
+            throw IllegalStateException("Bundled cloudflared binary is not executable")
         }
 
-        val partial = File(directory, target.name + ".part")
-
-        applicationContext.assets.open(CloudflareTunnelConfig.BINARY_NAME).use { input ->
-            partial.outputStream().use { output ->
-                input.copyTo(output)
-            }
-        }
-
-        if (partial.length() <= 1024 * 1024) {
-            partial.delete()
-            throw IllegalStateException("Bundled cloudflared binary is invalid")
-        }
-
-        if (!partial.setExecutable(true, false)) {
-            partial.delete()
-            throw IllegalStateException("Cannot mark bundled cloudflared executable")
-        }
-
-        if (!partial.renameTo(target)) {
-            target.delete()
-            if (!partial.renameTo(target)) {
-                throw IllegalStateException("Cannot install bundled cloudflared")
-            }
-        }
-
-        if (!target.setExecutable(true, false)) {
-            throw IllegalStateException("Cannot mark bundled cloudflared executable")
-        }
-
-        return target
+        return binary
     }
 
     private fun createNotificationChannel() {

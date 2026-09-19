@@ -43,9 +43,11 @@ jobs:
           file cloudflared-android-arm64
           test -x cloudflared-android-arm64
           test "$(stat -c%s cloudflared-android-arm64)" -gt 1048576
-          mkdir -p app/src/main/assets
-          cp cloudflared-android-arm64 app/src/main/assets/cloudflared-android-arm64
-          test -f app/src/main/assets/cloudflared-android-arm64
+          mkdir -p app/src/main/jniLibs/arm64-v8a
+          cp cloudflared-android-arm64 app/src/main/jniLibs/arm64-v8a/libcloudflared.so
+          test -f app/src/main/jniLibs/arm64-v8a/libcloudflared.so
+          file app/src/main/jniLibs/arm64-v8a/libcloudflared.so
+          readelf -h app/src/main/jniLibs/arm64-v8a/libcloudflared.so | grep -E "Class:.*ELF64|Machine:.*AArch64"
 
       - name: Prepare stable debug signing
         run: |
@@ -57,10 +59,11 @@ jobs:
 
       - name: Verify bundled cloudflared
         run: |
-          unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -E "assets/cloudflared-android-arm64$"
-          unzip -p app/build/outputs/apk/debug/app-debug.apk assets/cloudflared-android-arm64 > /tmp/cloudflared-from-apk
+          unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -E "lib/arm64-v8a/libcloudflared\.so$"
+          unzip -p app/build/outputs/apk/debug/app-debug.apk lib/arm64-v8a/libcloudflared.so > /tmp/cloudflared-from-apk
           file /tmp/cloudflared-from-apk
           test "$(stat -c%s /tmp/cloudflared-from-apk)" -gt 1048576
+          readelf -h /tmp/cloudflared-from-apk | grep -E "Class:.*ELF64|Machine:.*AArch64"
 
       - name: Verify APK
         run: |
