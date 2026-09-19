@@ -12,9 +12,10 @@ import android.provider.Settings
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.TextView
+import rikka.shizuku.Shizuku
 
 class MainActivity : Activity() {
-    private lateinit var adbStatus: TextView
+    private lateinit var shizukuStatus: TextView
     private lateinit var mcpStatus: TextView
     private lateinit var endpoint: TextView
     private lateinit var tunnelStatus: TextView
@@ -22,7 +23,7 @@ class MainActivity : Activity() {
     private lateinit var tunnelInstallStatus: TextView
     private lateinit var mcpToggle: Button
     private lateinit var tunnelToggle: Button
-    private lateinit var adbConnect: Button
+    private lateinit var shizukuConnect: Button
     private lateinit var keyboardEnable: Button
     private lateinit var keyboardSwitch: Button
 
@@ -38,11 +39,18 @@ class MainActivity : Activity() {
         }
     }
 
+    private val shizukuPermissionListener =
+        Shizuku.OnRequestPermissionResultListener { requestCode, grantResult ->
+            if (requestCode == SHIZUKU_PERMISSION_REQUEST) {
+                refreshShizuku()
+            }
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        adbStatus = findViewById(R.id.adb_status)
+        shizukuStatus = findViewById(R.id.shizuku_status)
         mcpStatus = findViewById(R.id.mcp_status)
         endpoint = findViewById(R.id.endpoint)
         tunnelStatus = findViewById(R.id.tunnel_status)
@@ -50,9 +58,13 @@ class MainActivity : Activity() {
         tunnelInstallStatus = findViewById(R.id.tunnel_install_status)
         mcpToggle = findViewById(R.id.toggle)
         tunnelToggle = findViewById(R.id.tunnel_toggle)
-        adbConnect = findViewById(R.id.connect_adb)
+        shizukuConnect = findViewById(R.id.connect_shizuku)
         keyboardEnable = findViewById(R.id.enable_keyboard)
         keyboardSwitch = findViewById(R.id.switch_keyboard)
+
+        Shizuku.addRequestPermissionResultListener(
+            shizukuPermissionListener
+        )
 
         if (
             Build.VERSION.SDK_INT >= 33 &&
@@ -65,8 +77,8 @@ class MainActivity : Activity() {
             )
         }
 
-        adbConnect.setOnClickListener {
-            checkAdbConnection()
+        shizukuConnect.setOnClickListener {
+            connectShizuku()
         }
 
         keyboardEnable.setOnClickListener {
@@ -87,8 +99,16 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onDestroy() {
+        Shizuku.removeRequestPermissionResultListener(
+            shizukuPermissionListener
+        )
+        super.onDestroy()
+    }
+
     override fun onResume() {
         super.onResume()
+        refreshShizuku()
         refreshMcp()
         refreshTunnel()
         uiHandler.post(tunnelPoll)
@@ -97,6 +117,62 @@ class MainActivity : Activity() {
     override fun onPause() {
         uiHandler.removeCallbacks(tunnelPoll)
         super.onPause()
+    }
+
+    private fun connectShizuku() {
+        try {
+            if (!Shizuku.pingBinder()) {
+                shizukuStatus.text = "Shizuku is not running"
+                return
+            }
+
+            if (
+                Shizuku.checkSelfPermission() ==
+                    PackageManager.PERMISSION_GRANTED
+            ) {
+                shizukuStatus.text = "Shizuku connected"
+                return
+            }
+
+            Shizuku.requestPermission(
+                SHIZUKU_PERMISSION_REQUEST
+            )
+            shizukuStatus.text = "Waiting for Shizuku permission..."
+        } catch (error: Throwable) {
+            shizukuStatus.text =
+                error.message ?: "Shizuku connection failed"
+        }
+    }
+
+    private fun refreshShizuku() {
+        try {
+            if (!Shizuku.pingBinder()) {
+                shizukuStatus.text = "Shizuku is not running"
+                shizukuConnect.text = "Connect Shizuku"
+                return
+            }
+
+            val granted =
+                Shizuku.checkSelfPermission() ==
+                    PackageManager.PERMISSION_GRANTED
+
+            shizukuStatus.text =
+                if (granted) {
+                    "Shizuku connected"
+                } else {
+                    "Shizuku permission required"
+                }
+
+            shizukuConnect.text =
+                if (granted) {
+                    "Reconnect Shizuku"
+                } else {
+                    "Authorize Shizuku"
+                }
+        } catch (error: Throwable) {
+            shizukuStatus.text =
+                error.message ?: "Shizuku unavailable"
+        }
     }
 
     private fun toggleMcp() {
@@ -179,30 +255,5 @@ class MainActivity : Activity() {
             } else {
                 "Start Cloudflare Tunnel"
             }
-    }
-
-    private fun checkAdbConnection() {
-        adbConnect.isEnabled = false
-        adbStatus.text =
-            "Connecting to 127.0.0.1:" + AdbTransport.ADB_PORT + "..."
-
-        Thread {
-            try {
-                val result = AdbBridge(preferences).checkConnection()
-
-                runOnUiThread {
-                    adbStatus.text = result
-                    adbConnect.text = "Reconnect ADB"
-                    adbConnect.isEnabled = true
-                }
-            } catch (error: Throwable) {
-                runOnUiThread {
-                    adbStatus.text =
-                        "Disconnected: " +
-                            (error.message ?: "ADB connection failed")
-                    adbConnect.isEnabled = true
-                }
-            }
-        }.start()
     }
 }
