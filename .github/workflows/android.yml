@@ -22,7 +22,6 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: "1.26.x"
-          cache: true
 
       - uses: gradle/actions/setup-gradle@v6
         with:
@@ -34,9 +33,34 @@ jobs:
 
       - name: Install Android SDK packages
         run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "emulator" "ndk;27.3.13750724" "system-images;android-35;google_apis;x86_64"
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.3.13750724"
+
+      - name: Resolve cloudflared revision
+        id: cloudflared
+        run: |
+          set -euo pipefail
+          ref="$(git ls-remote https://github.com/cloudflare/cloudflared.git HEAD | cut -f1)"
+          test "${#ref}" -eq 40
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Cache cloudflared binaries
+        id: cloudflared-binaries
+        uses: actions/cache@v4
+        with:
+          path: app/src/main/jniLibs
+          key: cloudflared-binaries-${{ steps.cloudflared.outputs.ref }}-ndk27.3-go1.26
+
+      - name: Cache cloudflared Go dependencies
+        id: cloudflared-go
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: cloudflared-go-${{ steps.cloudflared.outputs.ref }}-go1.26
 
       - name: Build cloudflared Android binaries
+        if: steps.cloudflared-binaries.outputs.cache-hit != 'true'
         env:
           ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
         run: |
@@ -50,11 +74,19 @@ jobs:
           go build -trimpath -o "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libcloudflared.so" ./cmd/cloudflared
           export GOARCH=arm GOARM=7 CC="$TOOLCHAIN/bin/armv7a-linux-androideabi21-clang"
           go build -trimpath -o "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libcloudflared.so" ./cmd/cloudflared
-          export GOARCH=amd64 CC="$TOOLCHAIN/bin/x86_64-linux-android21-clang"
+          export GOARCH=amd64
           unset GOARM
           go build -trimpath -o "$GITHUB_WORKSPACE/app/src/main/jniLibs/x86_64/libcloudflared.so" ./cmd/cloudflared
           file "$GITHUB_WORKSPACE"/app/src/main/jniLibs/*/libcloudflared.so
           chmod 755 "$GITHUB_WORKSPACE"/app/src/main/jniLibs/*/libcloudflared.so
+
+      - name: Verify bundled cloudflared
+        run: |
+          set -euxo pipefail
+          test -f app/src/main/jniLibs/arm64-v8a/libcloudflared.so
+          test -f app/src/main/jniLibs/armeabi-v7a/libcloudflared.so
+          test -f app/src/main/jniLibs/x86_64/libcloudflared.so
+          test "$(find app/src/main/jniLibs -name libcloudflared.so | wc -l)" -eq 3
 
       - name: Prepare stable debug signing
         run: |
@@ -63,8 +95,6 @@ jobs:
 
       - name: Determine release version
         id: version
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           next="v0.3.${GITHUB_RUN_NUMBER}"
           echo "tag=$next" >> "$GITHUB_OUTPUT"
@@ -78,10 +108,10 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import os, re
           p = Path("app/build.gradle.kts")
           s = p.read_text()
-          import os, re
-          s = re.sub(r'versionCode = \d+', 'versionCode = ' + os.environ["VERSION_CODE"], s)
+          s = re.sub(r'versionCode = \\d+', 'versionCode = ' + os.environ["VERSION_CODE"], s)
           s = re.sub(r'versionName = "[^"]+"', 'versionName = "' + os.environ["VERSION_NAME"] + '"', s)
           p.write_text(s)
           PY
@@ -122,4 +152,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
         run: |
-          gh release create "$RELEASE_TAG" Droid-MCP.apk             --title "Droid-MCP $RELEASE_TAG"             --generate-notes
+          gh release create "$RELEASE_TAG" Droid-MCP.apk --title "Droid-MCP $RELEASE_TAG" --generate-notes
