@@ -89,22 +89,32 @@ jobs:
       - name: Build
         run: gradle assembleDebug
 
-      - name: Smoke test bundled cloudflared from nativeLibraryDir
-        run: |
-          set -euxo pipefail
-          adb install -r app/build/outputs/apk/debug/app-debug.apk
-          NATIVE_LIB_DIR=$(adb shell pm path com.tulipskun.droidmcp | sed -n '1p' | sed 's#package:\(.*\)/base.apk#\1/lib/x86_64#' | tr -d '\r')
-          adb shell ls -l "$NATIVE_LIB_DIR/libcloudflared.so"
-          adb shell "$NATIVE_LIB_DIR/libcloudflared.so" version
-          adb uninstall com.tulipskun.droidmcp
-
       - name: Run Android runtime test
+        id: runtime_test
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 35
           target: google_apis
           arch: x86_64
-          script: gradle connectedDebugAndroidTest
+          script: |
+            set -euxo pipefail
+            adb shell getprop ro.product.cpu.abi
+            adb shell ls -l /system/bin/linker64
+            adb install -r app/build/outputs/apk/debug/app-debug.apk
+            NATIVE_LIB_DIR=$(adb shell pm path com.tulipskun.droidmcp | sed -n '1p' | sed 's#package:\\(.*\\)/base.apk#\\1/lib/x86_64#' | tr -d '\\r')
+            adb shell ls -l "$NATIVE_LIB_DIR/libcloudflared.so"
+            adb shell "$NATIVE_LIB_DIR/libcloudflared.so" version
+            adb uninstall com.tulipskun.droidmcp
+            gradle connectedDebugAndroidTest
+
+      - name: Dump emulator logs
+        if: always()
+        run: adb logcat -d -v time | tail -n 2000 || true
+
+      - name: Fail runtime test if needed
+        if: steps.runtime_test.outcome != 'success'
+        run: exit 1
 
       - name: Verify APK
         run: |
