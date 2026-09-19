@@ -50,11 +50,20 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
         ensureReady()
 
         synchronized(lock) {
-            val process = Shizuku.newProcess(
-                arrayOf("sh", "-c", command),
-                null,
-                null
-            )
+            val process = Shizuku::class.java
+                .getDeclaredMethod(
+                    "newProcess",
+                    Array<String>::class.java,
+                    Array<String>::class.java,
+                    String::class.java
+                )
+                .apply { isAccessible = true }
+                .invoke(
+                    null,
+                    arrayOf("sh", "-c", command),
+                    null,
+                    null
+                ) as Process
 
             try {
                 if (!process.waitFor(COMMAND_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
