@@ -50,7 +50,7 @@ object TermuxCloudflaredInstaller {
                     return binary
                 }
                 setInstallState(context, "Updating cloudflared")
-                installPackage(directory = directory, binary = binary, versionFile = versionFile, info = info)
+                installPackage(directory, binary, versionFile, info)
                 return binary
             } catch (error: Throwable) {
                 if (!installedVersion.isNullOrBlank()) {
@@ -222,22 +222,9 @@ object TermuxCloudflaredInstaller {
     }
 
 
-    private fun cloudflaredRunner(context: Context): File {
-        return File(
-            context.applicationInfo.nativeLibraryDir,
-            "libcloudflared_runner.so"
-        )
-    }
-
-    private fun verifyBinary(runner: File, binary: File) {
+    private fun verifyBinary(binary: File) {
         try {
-            val process = ProcessBuilder(
-                runner.absolutePath,
-                binary.absolutePath,
-                "version"
-            )
-                .redirectErrorStream(true)
-                .start()
+            val process = TermuxExec.start(binary, "version")
             val output = process.inputStream.bufferedReader().use { it.readText() }
             val exitCode = process.waitFor()
             if (exitCode != 0) {
