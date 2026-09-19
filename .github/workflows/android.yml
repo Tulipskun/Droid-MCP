@@ -63,12 +63,12 @@ jobs:
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk "Droid-MCP-$GITHUB_REF_NAME.apk"
+        run: cp app/build/outputs/apk/debug/app-debug.apk Droid-MCP.apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Droid-MCP-debug
-          path: "Droid-MCP-$GITHUB_REF_NAME.apk"
+          path: Droid-MCP.apk
       - name: Delete obsolete Cloudflared-only release
         if: github.event_name == 'pull_request' && github.event.pull_request.number == 5
         env:
@@ -80,4 +80,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "Droid-MCP-$GITHUB_REF_NAME.apk" --title "Droid-MCP $GITHUB_REF_NAME" --generate-notes
+          gh release create "$GITHUB_REF_NAME" Droid-MCP.apk --title "Droid-MCP $GITHUB_REF_NAME" --generate-notes
