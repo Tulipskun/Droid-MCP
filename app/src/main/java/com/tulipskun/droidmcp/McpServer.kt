@@ -446,10 +446,10 @@ class McpServer(
         output: BufferedOutputStream,
         status: Int,
         contentType: String?,
-        body: String?,
+        body: Any?,
         cors: Boolean = false
     ) {
-        val bytes = body?.toByteArray(StandardCharsets.UTF_8) ?: ByteArray(0)
+        val bytes = body?.toString()?.toByteArray(StandardCharsets.UTF_8) ?: ByteArray(0)
 
         val headers = buildString {
             append("HTTP/1.1 ")
