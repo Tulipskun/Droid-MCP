@@ -89,6 +89,15 @@ jobs:
       - name: Build
         run: gradle assembleDebug
 
+      - name: Smoke test bundled cloudflared from nativeLibraryDir
+        run: |
+          set -euxo pipefail
+          adb install -r app/build/outputs/apk/debug/app-debug.apk
+          NATIVE_LIB_DIR=$(adb shell pm path com.tulipskun.droidmcp | sed -n '1p' | sed 's#package:\(.*\)/base.apk#\1/lib/x86_64#' | tr -d '\r')
+          adb shell ls -l "$NATIVE_LIB_DIR/libcloudflared.so"
+          adb shell "$NATIVE_LIB_DIR/libcloudflared.so" version
+          adb uninstall com.tulipskun.droidmcp
+
       - name: Run Android runtime test
         uses: reactivecircus/android-emulator-runner@v2
         with:
