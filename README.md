@@ -30,10 +30,12 @@ ADB authentication:
 
 UI:
 - Connect ADB checks that `127.0.0.1:5555` is reachable and an ADB shell command succeeds.
+- Enable Droid-MCP Keyboard opens Android's input-method settings.
 - Switch Keyboard opens Android's system input-method picker.
+- Droid-MCP Keyboard is a real Android InputMethodService.
 
 No authentication or token layer is included for the MCP HTTP server.
 
-The debug APK is published by the GitHub Actions workflow as the `Droid-MCP-debug` artifact.
+The debug APK is published by the GitHub Actions workflow as the `Droid-MCP-debug` artifact. Debug builds use a stable repository signing key so successive CI APKs can be installed as updates instead of conflicting by signature. The first APK from before this stable signing change may still require a one-time uninstall if it was signed by a different key.
 
 MCP transport targets Streamable HTTP and protocol version 2026-07-28.
