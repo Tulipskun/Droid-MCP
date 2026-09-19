@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -100,9 +101,11 @@ int main(int argc, char** argv, char** envp) {
     }
     child_argv[argc - 1] = nullptr;
 
-    fexecve(memfd, child_argv, envp);
+    char memfd_path[64];
+    snprintf(memfd_path, sizeof(memfd_path), "/proc/self/fd/%d", memfd);
+    execve(memfd_path, child_argv, envp);
 
-    fprintf(stderr, "cloudflared runner: fexecve failed: %s\n", strerror(errno));
+    fprintf(stderr, "cloudflared runner: execve(memfd) failed: %s\n", strerror(errno));
     free(child_argv);
     close(memfd);
     return 126;
