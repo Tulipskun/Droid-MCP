@@ -133,14 +133,6 @@ class McpServer(
                     response.toString(),
                     cors = true
                 )
-            } catch (e: HeaderMismatchException) {
-                writeResponse(
-                    output,
-                    400,
-                    "application/json",
-                    error(null, HEADER_MISMATCH, e.message ?: "Header mismatch"),
-                    cors = true
-                )
             } catch (e: ProtocolException) {
                 writeResponse(
                     output,
@@ -482,8 +474,6 @@ class McpServer(
         val code: Int = 0,
         val data: JSONObject? = null
     ) : RuntimeException(message)
-
-    private class HeaderMismatchException(message: String) : RuntimeException(message)
 
     companion object {
         const val PROTOCOL_VERSION = "2025-11-25"
