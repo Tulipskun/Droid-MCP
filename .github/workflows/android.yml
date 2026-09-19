@@ -92,7 +92,7 @@ jobs:
           while read -r tag; do
             [ -z "$tag" ] && continue
             [ "$tag" = "$NEW_TAG" ] && continue
-            gh release delete "$tag" --yes --cleanup-tag
+            gh release view "$tag" >/dev/null 2>&1 && gh release delete "$tag" --yes --cleanup-tag || true
           done
 
       - name: Publish GitHub Release
