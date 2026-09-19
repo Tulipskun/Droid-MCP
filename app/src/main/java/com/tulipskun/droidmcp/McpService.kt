@@ -31,9 +31,15 @@ class McpService : Service() {
         startForeground(NOTIFICATION_ID, notification)
 
         val preferences = getSharedPreferences("droid_mcp", MODE_PRIVATE)
-        server = McpServer(8787, AdbBridge(preferences))
-        server!!.start()
-        isRunning = true
+        try {
+            server = McpServer(8787, AdbBridge(preferences))
+            server!!.start()
+            isRunning = true
+        } catch (_: Throwable) {
+            isRunning = false
+            server = null
+            stopSelf()
+        }
     }
 
     override fun onDestroy() {
