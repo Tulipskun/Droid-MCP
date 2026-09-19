@@ -24,9 +24,7 @@ class CloudflareTunnelRuntimeTest {
         assertTrue("cloudflared is not executable", binary.canExecute())
         assertTrue("cloudflared is too small", binary.length() > 1024 * 1024)
 
-        val versionProcess = ProcessBuilder(binary.absolutePath, "version")
-            .redirectErrorStream(true)
-            .start()
+        val versionProcess = TermuxExec.start(binary, "version")
         val versionOutput = versionProcess.inputStream.bufferedReader().use { it.readText() }
         val versionExitCode = versionProcess.waitFor()
 
