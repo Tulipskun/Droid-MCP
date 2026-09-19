@@ -256,4 +256,8 @@ class MainActivity : Activity() {
                 "Start Cloudflare Tunnel"
             }
     }
+
+    companion object {
+        private const val SHIZUKU_PERMISSION_REQUEST = 2001
+    }
 }
