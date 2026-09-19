@@ -193,13 +193,34 @@ object TermuxCloudflaredInstaller {
             FileOutputStream(tempPackage).use { it.write(packageBytes) }
             extractCloudflared(tempPackage, tempBinary)
             Os.chmod(tempBinary.absolutePath, 700)
+            tempBinary.setExecutable(true, true)
 
-            if (!tempBinary.isFile ||
-                tempBinary.length() <= 1024 * 1024 ||
-                !tempBinary.canExecute()
-            ) {
+            if (!tempBinary.isFile || tempBinary.length() <= 1024 * 1024) {
                 throw IllegalStateException(
-                    "Extracted cloudflared is invalid or not executable"
+                    "Extracted cloudflared is invalid: size=" + tempBinary.length()
+                )
+            }
+
+            try {
+                val process = ProcessBuilder(
+                    tempBinary.absolutePath,
+                    "version"
+                )
+                    .redirectErrorStream(true)
+                    .start()
+                val output = process.inputStream.bufferedReader().use { it.readText() }
+                val exitCode = process.waitFor()
+                if (exitCode != 0) {
+                    throw IllegalStateException(
+                        "cloudflared execution failed (" + exitCode + "): " +
+                            output.trim().take(500)
+                    )
+                }
+            } catch (error: Throwable) {
+                throw IllegalStateException(
+                    "Extracted cloudflared cannot execute: " +
+                        (error.message ?: error.javaClass.simpleName),
+                    error
                 )
             }
 
