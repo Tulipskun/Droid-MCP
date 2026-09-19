@@ -6,8 +6,9 @@ import java.io.ByteArrayOutputStream
 import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
 
-class AdbBridge {
+class AdbBridge(private val preferences: android.content.SharedPreferences) {
     private var shell: Process? = null
+    @Volatile private var eventDevice: String? = preferences.getString("event_device", null)
     private var shellInput: java.io.BufferedWriter? = null
     private var shellOutput: BufferedReader? = null
 
@@ -172,14 +173,22 @@ class AdbBridge {
         return bytes.toByteArray()
     }
 
+    @Synchronized
     private fun resolveEventDevice(): String {
+        eventDevice?.let { return it }
+
         val output = runOneShot("adb", "shell", "getevent", "-pl")
         val blocks = output.split(Regex("(?=add device)"))
 
         for (block in blocks) {
             if ("ABS_MT_POSITION_X" in block && "ABS_MT_POSITION_Y" in block) {
                 val match = Regex("/dev/input/event\\d+").find(block)
-                if (match != null) return match.value
+                if (match != null) {
+                    return match.value.also {
+                        eventDevice = it
+                        preferences.edit().putString("event_device", it).apply()
+                    }
+                }
             }
         }
 
