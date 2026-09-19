@@ -50,7 +50,7 @@ object TermuxCloudflaredInstaller {
                     return binary
                 }
                 setInstallState(context, "Updating cloudflared")
-                installPackage(directory, binary, versionFile, info)
+                installPackage(directory = directory, binary = binary, versionFile = versionFile, info = info)
                 return binary
             } catch (error: Throwable) {
                 if (!installedVersion.isNullOrBlank()) {
@@ -203,7 +203,7 @@ object TermuxCloudflaredInstaller {
                 )
             }
 
-            verifyBinary(runner, tempBinary)
+            verifyBinary(tempBinary)
 
             if (binary.exists() && !binary.delete()) {
                 throw IllegalStateException("Could not replace existing cloudflared")
