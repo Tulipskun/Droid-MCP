@@ -58,6 +58,10 @@ internal class AdbTransport(
             "host::".toByteArray(StandardCharsets.UTF_8) + byteArrayOf(0)
         )
 
+        // A_VERSION 0x01000001 negotiates the checksum-skipping protocol.
+        // The peer's CNXN/AUTH packets therefore use data_check = 0 too.
+        skipChecksum = true
+
         val key = loadOrCreateKey()
         var signatureSent = false
         var publicKeySent = false
