@@ -20,7 +20,28 @@ android {
         applicationId = "com.tulipskun.droidmcp"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.1.1"
+    }
+
+    signingConfigs {
+        create("stableDebug") {
+            val stableKeystore = file("droid-mcp-debug.keystore")
+            if (stableKeystore.exists()) {
+                storeFile = stableKeystore
+                storePassword = "droidmcpdebug"
+                keyAlias = "droid-mcp-debug"
+                keyPassword = "droidmcpdebug"
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("debug") {
+            val stableKeystore = file("droid-mcp-debug.keystore")
+            if (stableKeystore.exists()) {
+                signingConfig = signingConfigs.getByName("stableDebug")
+            }
+        }
     }
 }
