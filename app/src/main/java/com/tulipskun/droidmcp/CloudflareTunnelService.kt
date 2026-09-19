@@ -19,12 +19,14 @@ class CloudflareTunnelService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
-        startForeground(NOTIFICATION_ID, notification("Starting Cloudflare Tunnel"))
+        startForeground(NOTIFICATION_ID, notification("Preparing Cloudflare Tunnel"))
 
         executor.execute {
             try {
                 ensureMcpServer()
-                startTunnel()
+                setState(false, null, null)
+                val binary = TermuxCloudflaredInstaller.ensureInstalled(this)
+                startTunnel(binary)
             } catch (error: Throwable) {
                 setState(false, null, error.message ?: "Cloudflare Tunnel failed")
                 stopSelf()
@@ -47,8 +49,8 @@ class CloudflareTunnelService : Service() {
         }
     }
 
-    private fun startTunnel() {
-        val binary = bundledBinary()
+    private fun startTunnel(binary: File) {
+        val home = File(filesDir, "cloudflared-home").apply { mkdirs() }
         val builder = ProcessBuilder(
             binary.absolutePath,
             "tunnel",
@@ -60,7 +62,8 @@ class CloudflareTunnelService : Service() {
         )
 
         builder.redirectErrorStream(true)
-        builder.environment()["HOME"] = filesDir.absolutePath
+        builder.environment()["HOME"] = home.absolutePath
+        builder.environment()["TMPDIR"] = cacheDir.absolutePath
 
         val started = builder.start()
         process = started
@@ -88,20 +91,6 @@ class CloudflareTunnelService : Service() {
             setState(false, null, "cloudflared exited with code " + exitCode)
             stopSelf()
         }
-    }
-
-    private fun bundledBinary(): File {
-        val binary = File(applicationInfo.nativeLibraryDir, CloudflareTunnelConfig.BINARY_NAME)
-
-        if (!binary.isFile || binary.length() <= 1024 * 1024) {
-            throw IllegalStateException("Bundled cloudflared binary is missing")
-        }
-
-        if (!binary.canExecute()) {
-            throw IllegalStateException("Bundled cloudflared binary is not executable")
-        }
-
-        return binary
     }
 
     private fun createNotificationChannel() {
