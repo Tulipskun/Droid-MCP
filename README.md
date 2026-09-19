@@ -18,13 +18,21 @@ Tools:
 - screenshot
 
 Architecture:
-- One persistent ADB shell session for input commands.
-- Separate adb exec-out screencap -p process for screenshots.
+- One persistent in-app ADB shell session for input commands.
+- Separate ADB transport for screenshot exec-out.
 - One serialized command path through the persistent shell.
+- The app implements the ADB client protocol directly and connects to `127.0.0.1:5555`; no external adb executable is required.
 
-The ADB bridge targets the local Wi-Fi debugging endpoint `127.0.0.1:5555` and reconnects it before opening the persistent shell or taking screenshots. The current executor expects an adb executable available to the APK process. The MCP transport and tool layer are isolated from the execution backend so the bridge can be replaced without changing the MCP interface.
+ADB authentication:
+- The app creates and persists its own 2048-bit RSA ADB host key.
+- The first connection may require approving the key in Android's ADB authorization prompt.
+- After authorization, reconnects use the saved key.
 
-No authentication or token layer is included.
+UI:
+- Connect ADB checks that `127.0.0.1:5555` is reachable and an ADB shell command succeeds.
+- Switch Keyboard opens Android's system input-method picker.
+
+No authentication or token layer is included for the MCP HTTP server.
 
 The debug APK is published by the GitHub Actions workflow as the `Droid-MCP-debug` artifact.
 
