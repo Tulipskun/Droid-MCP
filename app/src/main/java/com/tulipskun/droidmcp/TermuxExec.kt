@@ -7,7 +7,7 @@ object TermuxExec {
     private const val LINKER_64 = "/system/bin/linker64"
     private const val LINKER_32 = "/system/bin/linker"
 
-    fun start(binary: File, vararg args: String[], environment: Map<String, String> = emptyMap()): Process {
+    fun start(binary: File, vararg args: String, environment: Map<String, String> = emptyMap()): Process {
         require(binary.isFile) { "Executable does not exist: " + binary.absolutePath }
         require(binary.canRead()) { "Executable is not readable: " + binary.absolutePath }
 
