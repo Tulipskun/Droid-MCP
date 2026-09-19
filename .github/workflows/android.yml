@@ -19,6 +19,11 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.x"
+          cache: true
+
       - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.10.2"
@@ -29,7 +34,27 @@ jobs:
 
       - name: Install Android SDK packages
         run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "emulator" "system-images;android-35;google_apis;x86_64"
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "emulator" "ndk;27.3.13750724" "system-images;android-35;google_apis;x86_64"
+
+      - name: Build cloudflared Android binaries
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.3.13750724
+        run: |
+          set -euxo pipefail
+          git clone --depth 1 https://github.com/cloudflare/cloudflared.git /tmp/cloudflared
+          cd /tmp/cloudflared
+          export TOOLCHAIN="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64"
+          mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a" "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a" "$GITHUB_WORKSPACE/app/src/main/jniLibs/x86_64"
+          export CGO_ENABLED=1 GOOS=android
+          export GOARCH=arm64 CC="$TOOLCHAIN/bin/aarch64-linux-android21-clang"
+          go build -trimpath -o "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libcloudflared.so" ./cmd/cloudflared
+          export GOARCH=arm GOARM=7 CC="$TOOLCHAIN/bin/armv7a-linux-androideabi21-clang"
+          go build -trimpath -o "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libcloudflared.so" ./cmd/cloudflared
+          export GOARCH=amd64 CC="$TOOLCHAIN/bin/x86_64-linux-android21-clang"
+          unset GOARM
+          go build -trimpath -o "$GITHUB_WORKSPACE/app/src/main/jniLibs/x86_64/libcloudflared.so" ./cmd/cloudflared
+          file "$GITHUB_WORKSPACE"/app/src/main/jniLibs/*/libcloudflared.so
+          chmod 755 "$GITHUB_WORKSPACE"/app/src/main/jniLibs/*/libcloudflared.so
 
       - name: Prepare stable debug signing
         run: |
