@@ -35,6 +35,7 @@ object TermuxCloudflaredInstaller {
 
     @Synchronized
     fun ensureInstalled(context: Context): File {
+        setInstallState(context, "Checking cloudflared")
         val directory = File(context.filesDir, PACKAGE_DIR)
         val binary = File(directory, BINARY_NAME)
         val versionFile = File(directory, "version")
@@ -45,8 +46,10 @@ object TermuxCloudflaredInstaller {
             try {
                 val info = fetchPackageInfo(architecture)
                 if (installedVersion == info.version) {
+                    setInstallState(context, "cloudflared ready")
                     return binary
                 }
+                setInstallState(context, "Updating cloudflared")
                 installPackage(directory, binary, versionFile, info)
                 return binary
             } catch (error: Throwable) {
@@ -58,7 +61,9 @@ object TermuxCloudflaredInstaller {
         }
 
         val info = fetchPackageInfo(architecture)
+        setInstallState(context, "Installing cloudflared")
         installPackage(directory, binary, versionFile, info)
+        setInstallState(context, "cloudflared ready")
         return binary
     }
 
@@ -411,6 +416,13 @@ object TermuxCloudflaredInstaller {
         } finally {
             connection.disconnect()
         }
+    }
+
+    private fun setInstallState(context: Context, status: String) {
+        context.getSharedPreferences("droid_mcp", Context.MODE_PRIVATE)
+            .edit()
+            .putString("cloudflared_install_status", status)
+            .apply()
     }
 
     private fun sha256(bytes: ByteArray): String {
