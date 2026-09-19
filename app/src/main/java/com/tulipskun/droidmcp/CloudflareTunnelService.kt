@@ -28,6 +28,10 @@ class CloudflareTunnelService : Service() {
                 val binary = TermuxCloudflaredInstaller.ensureInstalled(this)
                 startTunnel(binary)
             } catch (error: Throwable) {
+                getSharedPreferences("droid_mcp", MODE_PRIVATE)
+                    .edit()
+                    .putString("cloudflared_install_status", "Failed: " + (error.message ?: "installation failed"))
+                    .apply()
                 setState(false, null, error.message ?: "Cloudflare Tunnel failed")
                 stopSelf()
             }
