@@ -36,21 +36,28 @@ jobs:
 
       - name: Build bundled cloudflared
         run: |
-          git clone --depth 1 --branch "$CLOUDFLARED_VERSION" \
-            https://github.com/cloudflare/cloudflared.git cloudflared
+          git clone --depth 1 --branch "$CLOUDFLARED_VERSION"             https://github.com/cloudflare/cloudflared.git cloudflared
           cd cloudflared
-          GOOS=android GOARCH=arm64 CGO_ENABLED=0 \
-            go build -trimpath -mod=mod \
-            -ldflags "-X main.Version=$CLOUDFLARED_VERSION" \
-            -o ../cloudflared-android-arm64 \
-            ./cmd/cloudflared
+
+          GOOS=android GOARCH=arm64 CGO_ENABLED=0             go build -trimpath -mod=mod             -ldflags "-X main.Version=$CLOUDFLARED_VERSION"             -o ../cloudflared-android-arm64             ./cmd/cloudflared
+
+          GOOS=android GOARCH=amd64 CGO_ENABLED=0             go build -trimpath -mod=mod             -ldflags "-X main.Version=$CLOUDFLARED_VERSION"             -o ../cloudflared-android-amd64             ./cmd/cloudflared
+
           cd ..
+
           test -x cloudflared-android-arm64
+          test -x cloudflared-android-amd64
           test "$(stat -c%s cloudflared-android-arm64)" -gt 1048576
+          test "$(stat -c%s cloudflared-android-amd64)" -gt 1048576
+
           mkdir -p app/src/main/jniLibs/arm64-v8a
+          mkdir -p app/src/main/jniLibs/x86_64
+
           cp cloudflared-android-arm64 app/src/main/jniLibs/arm64-v8a/libcloudflared.so
-          readelf -h app/src/main/jniLibs/arm64-v8a/libcloudflared.so | \
-            grep -E "Class:.*ELF64|Machine:.*AArch64"
+          cp cloudflared-android-amd64 app/src/main/jniLibs/x86_64/libcloudflared.so
+
+          readelf -h app/src/main/jniLibs/arm64-v8a/libcloudflared.so |             grep -E "Class:.*ELF64|Machine:.*AArch64"
+          readelf -h app/src/main/jniLibs/x86_64/libcloudflared.so |             grep -E "Class:.*ELF64|Machine:.*Advanced Micro Devices X86-64"
 
       - name: Prepare stable debug signing
         run: |
@@ -62,13 +69,16 @@ jobs:
 
       - name: Verify bundled cloudflared in APK
         run: |
-          unzip -l app/build/outputs/apk/debug/app-debug.apk | \
-            grep -E "lib/arm64-v8a/libcloudflared\\.so$"
-          unzip -p app/build/outputs/apk/debug/app-debug.apk \
-            lib/arm64-v8a/libcloudflared.so > /tmp/cloudflared-from-apk
-          test "$(stat -c%s /tmp/cloudflared-from-apk)" -gt 1048576
-          readelf -h /tmp/cloudflared-from-apk | \
-            grep -E "Class:.*ELF64|Machine:.*AArch64"
+          unzip -l app/build/outputs/apk/debug/app-debug.apk |             grep -E "lib/(arm64-v8a|x86_64)/libcloudflared\.so$"
+
+          unzip -p app/build/outputs/apk/debug/app-debug.apk             lib/arm64-v8a/libcloudflared.so > /tmp/cloudflared-arm64
+          unzip -p app/build/outputs/apk/debug/app-debug.apk             lib/x86_64/libcloudflared.so > /tmp/cloudflared-x86_64
+
+          test "$(stat -c%s /tmp/cloudflared-arm64)" -gt 1048576
+          test "$(stat -c%s /tmp/cloudflared-x86_64)" -gt 1048576
+
+          readelf -h /tmp/cloudflared-arm64 |             grep -E "Class:.*ELF64|Machine:.*AArch64"
+          readelf -h /tmp/cloudflared-x86_64 |             grep -E "Class:.*ELF64|Machine:.*Advanced Micro Devices X86-64"
 
       - name: Upload test APKs
         uses: actions/upload-artifact@v4
@@ -78,27 +88,27 @@ jobs:
             app/build/outputs/apk/debug/app-debug.apk
             app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 
-  run-on-arm64-android:
+  run-on-android:
     needs: build-test-apks
-    runs-on: macos-latest
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v5
         with:
           name: android-runtime-test-apks
           path: apks
 
-      - name: Run on ARM64 Android emulator
+      - name: Run on Android x86_64 emulator
         uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
           api-level: 35
           target: google_apis
-          arch: arm64-v8a
+          arch: x86_64
           profile: pixel_6
           cores: 4
           ram-size: 4096M
           heap-size: 1024M
           disable-animations: true
-          emulator-boot-timeout: 900
+          emulator-boot-timeout: 600
           script: |
             adb install -r apks/app-debug.apk
             adb install -r apks/app-debug-androidTest.apk
