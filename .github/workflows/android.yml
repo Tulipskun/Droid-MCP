@@ -69,6 +69,12 @@ jobs:
         with:
           name: Droid-MCP-debug
           path: "Droid-MCP-$GITHUB_REF_NAME.apk"
+      - name: Delete obsolete Cloudflared-only release
+        if: github.event_name == 'pull_request' && github.event.pull_request.number == 5
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete cloudflared-android --yes --cleanup-tag || true
+
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
