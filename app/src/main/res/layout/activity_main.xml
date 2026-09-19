@@ -108,6 +108,15 @@
             android:textStyle="bold" />
 
         <TextView
+            android:id="@+id/tunnel_install_status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="Not installed"
+            android:textColor="#BDBDBD"
+            android:textSize="15sp" />
+
+        <TextView
             android:id="@+id/tunnel_status"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
