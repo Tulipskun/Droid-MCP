@@ -55,32 +55,19 @@ class CloudflareTunnelService : Service() {
 
     private fun startTunnel(binary: File) {
         val home = File(filesDir, "cloudflared-home").apply { mkdirs() }
-        val runner = File(
-            applicationInfo.nativeLibraryDir,
-            "libcloudflared_runner.so"
-        )
-        if (!runner.isFile || !runner.canExecute()) {
-            throw IllegalStateException(
-                "Cloudflared runner is missing: " + runner.absolutePath
-            )
-        }
-
-        val builder = ProcessBuilder(
-            runner.absolutePath,
-            binary.absolutePath,
+        val started = TermuxExec.start(
+            binary,
             "tunnel",
             "--no-autoupdate",
             "--loglevel",
             "info",
             "--url",
-            CloudflareTunnelConfig.LOCAL_ORIGIN
+            CloudflareTunnelConfig.LOCAL_ORIGIN,
+            environment = mapOf(
+                "HOME" to home.absolutePath,
+                "TMPDIR" to cacheDir.absolutePath
+            )
         )
-
-        builder.redirectErrorStream(true)
-        builder.environment()["HOME"] = home.absolutePath
-        builder.environment()["TMPDIR"] = cacheDir.absolutePath
-
-        val started = builder.start()
         process = started
         setState(true, null, null)
 
