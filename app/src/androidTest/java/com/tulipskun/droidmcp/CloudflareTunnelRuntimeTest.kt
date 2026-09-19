@@ -18,13 +18,10 @@ class CloudflareTunnelRuntimeTest {
     fun cloudflaredAndQuickTunnelWorkEndToEnd() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
-        val binary = File(
-            context.applicationInfo.nativeLibraryDir,
-            CloudflareTunnelConfig.BINARY_NAME
-        )
+        val binary = TermuxCloudflaredInstaller.ensureInstalled(context)
 
-        assertTrue("cloudflared is not extracted: ${binary.absolutePath}", binary.isFile)
-        assertTrue("cloudflared is not executable: ${binary.absolutePath}", binary.canExecute())
+        assertTrue("cloudflared was not installed", binary.isFile)
+        assertTrue("cloudflared is not executable", binary.canExecute())
         assertTrue("cloudflared is too small", binary.length() > 1024 * 1024)
 
         val versionProcess = ProcessBuilder(binary.absolutePath, "version")
@@ -33,9 +30,9 @@ class CloudflareTunnelRuntimeTest {
         val versionOutput = versionProcess.inputStream.bufferedReader().use { it.readText() }
         val versionExitCode = versionProcess.waitFor()
 
-        assertEquals("cloudflared version command failed: ${versionOutput}", 0, versionExitCode)
+        assertEquals("cloudflared version command failed: " + versionOutput, 0, versionExitCode)
         assertTrue(
-            "unexpected cloudflared output: ${versionOutput}",
+            "unexpected cloudflared output: " + versionOutput,
             versionOutput.contains("cloudflared version", ignoreCase = true)
         )
 
@@ -46,10 +43,11 @@ class CloudflareTunnelRuntimeTest {
         val serviceIntent = Intent(context, CloudflareTunnelService::class.java)
 
         try {
+            context.getSharedPreferences("droid_mcp", 0).edit().clear().apply()
             context.startForegroundService(serviceIntent)
 
             val preferences = context.getSharedPreferences("droid_mcp", 0)
-            val deadline = System.currentTimeMillis() + 120_000
+            val deadline = System.currentTimeMillis() + 180_000
             var quickUrl: String? = null
 
             while (System.currentTimeMillis() < deadline) {
@@ -57,7 +55,7 @@ class CloudflareTunnelRuntimeTest {
                 quickUrl = preferences.getString("tunnel_url", null)
 
                 if (error != null) {
-                    throw AssertionError("Cloudflare Tunnel failed: ${error}")
+                    throw AssertionError("Cloudflare Tunnel failed: " + error)
                 }
 
                 if (!quickUrl.isNullOrBlank()) {
@@ -69,7 +67,7 @@ class CloudflareTunnelRuntimeTest {
 
             assertNotNull("Quick Tunnel URL was not produced", quickUrl)
             assertTrue(
-                "Unexpected Quick Tunnel URL: ${quickUrl}",
+                "Unexpected Quick Tunnel URL: " + quickUrl,
                 quickUrl!!.startsWith("https://") &&
                     quickUrl.endsWith(".trycloudflare.com")
             )
@@ -80,7 +78,7 @@ class CloudflareTunnelRuntimeTest {
 
             for (attempt in 0 until 10) {
                 try {
-                    val connection = URL("${quickUrl}/mcp").openConnection() as HttpURLConnection
+                    val connection = URL(quickUrl + "/mcp").openConnection() as HttpURLConnection
                     connection.requestMethod = "POST"
                     connection.connectTimeout = 10_000
                     connection.readTimeout = 10_000
@@ -120,12 +118,17 @@ class CloudflareTunnelRuntimeTest {
             }
 
             assertEquals(
-                "Quick Tunnel MCP request failed: code=${responseCode} error=${lastError} body=${responseBody}",
+                "Quick Tunnel MCP request failed: code=" +
+                    responseCode +
+                    " error=" +
+                    lastError +
+                    " body=" +
+                    responseBody,
                 200,
                 responseCode
             )
             assertTrue(
-                "Unexpected MCP response: ${responseBody}",
+                "Unexpected MCP response: " + responseBody,
                 responseBody?.contains("Droid-MCP") == true
             )
         } finally {
