@@ -112,11 +112,14 @@ jobs:
           target: google_apis
           arch: x86_64
           profile: pixel_6
+          force-avd-creation: true
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect
           cores: 4
-          ram-size: 4096M
-          heap-size: 1024M
+          ram-size: 3072M
+          heap-size: 512M
           disable-animations: true
-          emulator-boot-timeout: 600
+          disable-spellchecker: true
+          emulator-boot-timeout: 300
           script: |
             adb install -r apks/app-debug.apk
             adb install -r apks/app-debug-androidTest.apk
