@@ -21,17 +21,17 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="24dp"
-            android:text="ADB"
+            android:text="Shizuku"
             android:textColor="#FFFFFF"
             android:textSize="20sp"
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/adb_status"
+            android:id="@+id/shizuku_status"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="Disconnected"
+            android:text="Shizuku is not running"
             android:textColor="#FFFFFF"
             android:textSize="16sp" />
 
@@ -39,16 +39,16 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:text="127.0.0.1:5555"
+            android:text="Shell-level Android control"
             android:textColor="#BDBDBD"
             android:textSize="15sp" />
 
         <Button
-            android:id="@+id/connect_adb"
+            android:id="@+id/connect_shizuku"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="Connect ADB" />
+            android:text="Authorize Shizuku" />
 
         <Button
             android:id="@+id/enable_keyboard"
@@ -133,6 +133,13 @@
             android:text="https://&lt;random&gt;.trycloudflare.com/mcp"
             android:textColor="#BDBDBD"
             android:textSize="15sp" />
+
+        <Button
+            android:id="@+id/copy_tunnel_url"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="Copy MCP URL" />
 
         <Button
             android:id="@+id/tunnel_toggle"

@@ -12,7 +12,7 @@ import java.nio.charset.StandardCharsets
 
 class McpServer(
     private val port: Int,
-    private val executor: AdbBridge
+    private val executor: ShizukuBridge
 ) {
     private var serverSocket: ServerSocket? = null
     @Volatile private var running = false
@@ -68,13 +68,7 @@ class McpServer(
                 }
 
                 if (method == "OPTIONS") {
-                    writeResponse(
-                        output,
-                        204,
-                        null,
-                        null,
-                        cors = true
-                    )
+                    writeResponse(output, 204, null, null, cors = true)
                     return
                 }
 
@@ -260,12 +254,11 @@ class McpServer(
     private fun callTool(name: String, args: JSONObject): JSONObject {
         return try {
             when (name) {
-                "tap" -> {
+                "tap" -> toolWithScreenshot("tap completed") {
                     executor.tap(args.getInt("x"), args.getInt("y"))
-                    toolText("tap completed")
                 }
 
-                "swipe" -> {
+                "swipe" -> toolWithScreenshot("swipe completed") {
                     executor.swipe(
                         args.getInt("x1"),
                         args.getInt("y1"),
@@ -273,27 +266,22 @@ class McpServer(
                         args.getInt("y2"),
                         args.getLong("duration_ms")
                     )
-                    toolText("swipe completed")
                 }
 
-                "gesture" -> {
+                "gesture" -> toolWithScreenshot("gesture completed") {
                     executor.gesture(args.getJSONArray("points"))
-                    toolText("gesture completed")
                 }
 
-                "multi_touch" -> {
+                "multi_touch" -> toolWithScreenshot("multi_touch completed") {
                     executor.multiTouch(args.getJSONArray("pointers"))
-                    toolText("multi_touch completed")
                 }
 
-                "key_event" -> {
+                "key_event" -> toolWithScreenshot("key_event completed") {
                     executor.keyEvent(args.getInt("keycode"))
-                    toolText("key_event completed")
                 }
 
-                "input_text" -> {
+                "input_text" -> toolWithScreenshot("input_text completed") {
                     executor.inputText(args.getString("text"))
-                    toolText("input_text completed")
                 }
 
                 "screenshot" -> {
@@ -335,6 +323,33 @@ class McpServer(
                 )
                 .put("isError", true)
         }
+    }
+
+    private fun toolWithScreenshot(
+        text: String,
+        action: () -> Unit
+    ): JSONObject {
+        action()
+        Thread.sleep(SCREENSHOT_DELAY_MILLIS)
+        val png = executor.screenshot()
+
+        return JSONObject()
+            .put("resultType", "complete")
+            .put(
+                "content",
+                JSONArray()
+                    .put(toolTextItem(text))
+                    .put(
+                        JSONObject()
+                            .put("type", "image")
+                            .put(
+                                "data",
+                                Base64.encodeToString(png, Base64.NO_WRAP)
+                            )
+                            .put("mimeType", "image/png")
+                    )
+            )
+            .put("isError", false)
     }
 
     private fun toolText(text: String): JSONObject =
@@ -485,5 +500,6 @@ class McpServer(
         )
         private const val UNSUPPORTED_PROTOCOL_VERSION = -32602
         private const val MAX_BODY = 1024 * 1024
+        private const val SCREENSHOT_DELAY_MILLIS = 1000L
     }
 }
