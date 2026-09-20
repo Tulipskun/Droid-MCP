@@ -110,10 +110,7 @@ class MainActivity : Activity() {
         tunnelId.setText(preferences.getString("cloudflare_tunnel_id", ""))
         tunnelToken.setText(preferences.getString("cloudflare_tunnel_token", ""))
         tunnelHostname.setText(
-            preferences.getString(
-                "cloudflare_tunnel_hostname",
-                CloudflareTunnelConfig.DEFAULT_HOSTNAME
-            )
+            preferences.getString("cloudflare_tunnel_hostname", "")
         )
     }
 
@@ -219,6 +216,9 @@ class MainActivity : Activity() {
 
     private fun buildHostnameUrl(): String {
         val hostname = tunnelHostname.text.toString().trim()
+            .removePrefix("https://")
+            .removePrefix("http://")
+            .trim('/')
         return if (hostname.isBlank()) "" else "https://$hostname"
     }
 
@@ -238,7 +238,8 @@ class MainActivity : Activity() {
             running -> "Starting Named Tunnel..."
             else -> "Stopped"
         }
-        tunnelEndpoint.text = (url ?: buildHostnameUrl()).removeSuffix("/") + "/mcp"
+        val endpointUrl = url?.removeSuffix("/")?.plus("/mcp") ?: buildHostnameUrl().removeSuffix("/") + "/mcp"
+        tunnelEndpoint.text = if (endpointUrl == "/mcp") "Not configured" else endpointUrl
         tunnelToggle.text = if (CloudflareTunnelService.isRunning) {
             "Stop Cloudflare Tunnel"
         } else "Start Cloudflare Tunnel"
