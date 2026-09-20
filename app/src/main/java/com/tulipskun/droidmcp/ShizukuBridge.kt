@@ -1,5 +1,6 @@
 package com.tulipskun.droidmcp
 
+import android.content.ClipData
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
@@ -471,8 +472,73 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
             return
         }
 
-        runCommand("cmd clipboard set-primary-clip " + escaped)
+        setClipboardText(text)
         runCommand("input keyevent 279")
+    }
+
+    private fun setClipboardText(text: String) {
+        val service = SystemServiceHelper.getSystemService("clipboard")
+            ?: throw IllegalStateException("Android clipboard service is unavailable")
+
+        val stubClass = Class.forName("android.content.IClipboard\\$Stub")
+        val asInterface = stubClass.getDeclaredMethod(
+            "asInterface",
+            android.os.IBinder::class.java
+        )
+        asInterface.isAccessible = true
+
+        val clipboard = asInterface.invoke(
+            null,
+            ShizukuBinderWrapper(service)
+        ) ?: throw IllegalStateException("Unable to create IClipboard proxy")
+
+        val setPrimaryClip = clipboard.javaClass.methods.firstOrNull {
+            it.name == "setPrimaryClip"
+        } ?: throw IllegalStateException("IClipboard.setPrimaryClip is unavailable")
+
+        val clip = ClipData.newPlainText("Droid-MCP", text)
+        val parameterCount = setPrimaryClip.parameterTypes.size
+
+        try {
+            when (parameterCount) {
+                5 -> setPrimaryClip.invoke(
+                    clipboard,
+                    clip,
+                    "com.android.shell",
+                    null,
+                    android.os.UserHandle.myUserId(),
+                    0
+                )
+                4 -> setPrimaryClip.invoke(
+                    clipboard,
+                    clip,
+                    "com.android.shell",
+                    null,
+                    android.os.UserHandle.myUserId()
+                )
+                3 -> setPrimaryClip.invoke(
+                    clipboard,
+                    clip,
+                    "com.android.shell",
+                    android.os.UserHandle.myUserId()
+                )
+                2 -> setPrimaryClip.invoke(
+                    clipboard,
+                    clip,
+                    "com.android.shell"
+                )
+                else -> throw IllegalStateException(
+                    "Unsupported IClipboard.setPrimaryClip signature"
+                )
+            }
+        } catch (error: Throwable) {
+            val cause = error.cause ?: error
+            throw IllegalStateException(
+                "Unable to set clipboard text: " +
+                    (cause.message ?: cause.javaClass.name),
+                cause
+            )
+        }
     }
 
     private fun shellQuote(value: String): String =
