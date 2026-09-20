@@ -32,7 +32,9 @@ class MainActivity : Activity() {
     private lateinit var tunnelToggle: Button
     private lateinit var tunnelId: EditText
     private lateinit var tunnelToken: EditText
-    private lateinit var tunnelHostname: EditText\n    private lateinit var mcpAccessToken: EditText\n    private lateinit var copyMcpToken: Button
+    private lateinit var tunnelHostname: EditText
+    private lateinit var mcpAccessToken: EditText
+    private lateinit var copyMcpToken: Button
     private lateinit var mcpToggle: Button
     private lateinit var shizukuConnect: Button
     private lateinit var keyboardEnable: Button
@@ -71,7 +73,9 @@ class MainActivity : Activity() {
         tunnelToggle = findViewById(R.id.tunnel_toggle)
         tunnelId = findViewById(R.id.tunnel_id)
         tunnelToken = findViewById(R.id.tunnel_token)
-        tunnelHostname = findViewById(R.id.tunnel_hostname)\n        mcpAccessToken = findViewById(R.id.mcp_access_token)\n        copyMcpToken = findViewById(R.id.copy_mcp_token)
+        tunnelHostname = findViewById(R.id.tunnel_hostname)
+        mcpAccessToken = findViewById(R.id.mcp_access_token)
+        copyMcpToken = findViewById(R.id.copy_mcp_token)
         mcpToggle = findViewById(R.id.toggle)
         shizukuConnect = findViewById(R.id.connect_shizuku)
         keyboardEnable = findViewById(R.id.enable_keyboard)
@@ -97,13 +101,15 @@ class MainActivity : Activity() {
         }
         mcpToggle.setOnClickListener { toggleMcp() }
         tunnelToggle.setOnClickListener { toggleTunnel() }
-        copyTunnelUrl.setOnClickListener { copyTunnelUrl() }\n        copyMcpToken.setOnClickListener { copyMcpAccessToken() }
+        copyTunnelUrl.setOnClickListener { copyTunnelUrl() }
+        copyMcpToken.setOnClickListener { copyMcpAccessToken() }
 
         val save = {
             preferences.edit()
                 .putString("cloudflare_tunnel_id", tunnelId.text.toString().trim())
                 .putString("cloudflare_tunnel_token", tunnelToken.text.toString().trim())
-                .putString("cloudflare_tunnel_hostname", tunnelHostname.text.toString().trim())\n                .putString("mcp_access_token", mcpAccessToken.text.toString().trim())
+                .putString("cloudflare_tunnel_hostname", tunnelHostname.text.toString().trim())
+                .putString("mcp_access_token", mcpAccessToken.text.toString().trim())
                 .apply()
             Toast.makeText(this, "Cloudflare Tunnel settings saved", Toast.LENGTH_SHORT).show()
         }
@@ -113,7 +119,10 @@ class MainActivity : Activity() {
         tunnelToken.setOnFocusChangeListener { view, hasFocus ->
             if (!hasFocus) save() else view.postDelayed({ mainScroll.smoothScrollTo(0, view.bottom) }, 180)
         }
-        mcpAccessToken.setOnFocusChangeListener { view, hasFocus ->\n            if (!hasFocus) save() else view.postDelayed({ mainScroll.smoothScrollTo(0, view.bottom) }, 180)\n        }\n        tunnelHostname.setOnFocusChangeListener { view, hasFocus ->
+        mcpAccessToken.setOnFocusChangeListener { view, hasFocus ->
+            if (!hasFocus) save() else view.postDelayed({ mainScroll.smoothScrollTo(0, view.bottom) }, 180)
+        }
+        tunnelHostname.setOnFocusChangeListener { view, hasFocus ->
             if (!hasFocus) save() else view.postDelayed({ mainScroll.smoothScrollTo(0, view.bottom) }, 180)
         }
     }
@@ -144,7 +153,8 @@ class MainActivity : Activity() {
         }
         tunnelId.onFocusChangeListener = focusListener
         tunnelToken.onFocusChangeListener = focusListener
-        tunnelHostname.onFocusChangeListener = focusListener\n        mcpAccessToken.onFocusChangeListener = focusListener
+        tunnelHostname.onFocusChangeListener = focusListener
+        mcpAccessToken.onFocusChangeListener = focusListener
 
         mainScroll.viewTreeObserver.addOnGlobalLayoutListener {
             if (currentFocus is EditText) {
