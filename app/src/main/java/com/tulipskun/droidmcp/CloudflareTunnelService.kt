@@ -63,6 +63,8 @@ class CloudflareTunnelService : Service() {
             "--protocol",
             "http2",
             "--no-prechecks",
+            "--metrics",
+            "127.0.0.1:0",
             "--loglevel",
             "debug",
             "--url",
