@@ -492,7 +492,8 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
             ShizukuBinderWrapper(service)
         ) ?: throw IllegalStateException("Unable to create IClipboard proxy")
 
-        val setPrimaryClip = clipboard.javaClass.methods.firstOrNull {
+        val clipboardInterface = Class.forName("android.content.IClipboard")
+        val setPrimaryClip = clipboardInterface.declaredMethods.firstOrNull {
             it.name == "setPrimaryClip"
         } ?: throw IllegalStateException("IClipboard.setPrimaryClip is unavailable")
 
