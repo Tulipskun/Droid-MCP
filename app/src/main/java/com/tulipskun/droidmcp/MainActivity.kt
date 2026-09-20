@@ -31,9 +31,7 @@ class MainActivity : Activity() {
     private lateinit var tunnelInstallStatus: TextView
     private lateinit var tunnelToggle: Button
     private lateinit var tunnelId: EditText
-    private lateinit var tunnelTokenPart1: EditText
-    private lateinit var tunnelTokenPart2: EditText
-    private lateinit var tunnelTokenPart3: EditText
+    private lateinit var tunnelToken: EditText
     private lateinit var tunnelHostname: EditText
     private lateinit var mcpAccessToken: EditText
     private lateinit var copyMcpToken: Button
@@ -74,9 +72,7 @@ class MainActivity : Activity() {
         tunnelInstallStatus = findViewById(R.id.tunnel_install_status)
         tunnelToggle = findViewById(R.id.tunnel_toggle)
         tunnelId = findViewById(R.id.tunnel_id)
-        tunnelTokenPart1 = findViewById(R.id.tunnel_token_part1)
-        tunnelTokenPart2 = findViewById(R.id.tunnel_token_part2)
-        tunnelTokenPart3 = findViewById(R.id.tunnel_token_part3)
+        tunnelToken = findViewById(R.id.tunnel_token)
         tunnelHostname = findViewById(R.id.tunnel_hostname)
         mcpAccessToken = findViewById(R.id.mcp_access_token)
         copyMcpToken = findViewById(R.id.copy_mcp_token)
@@ -112,7 +108,7 @@ class MainActivity : Activity() {
         val save = {
             preferences.edit()
                 .putString("cloudflare_tunnel_id", tunnelId.text.toString().trim())
-                .putString("cloudflare_tunnel_token", combinedTunnelToken())
+                .putString("cloudflare_tunnel_token", tunnelToken.text.toString().trim())
                 .putString("cloudflare_tunnel_hostname", tunnelHostname.text.toString().trim())
                 .putString("mcp_access_token", mcpAccessToken.text.toString().trim())
                 .apply()
@@ -121,13 +117,7 @@ class MainActivity : Activity() {
         tunnelId.setOnFocusChangeListener { view, hasFocus ->
             if (!hasFocus) save() else view.postDelayed({ mainScroll.smoothScrollTo(0, view.bottom) }, 180)
         }
-        tunnelTokenPart1.setOnFocusChangeListener { view, hasFocus ->
-            if (!hasFocus) save() else view.postDelayed({ mainScroll.smoothScrollTo(0, view.bottom) }, 180)
-        }
-        tunnelTokenPart2.setOnFocusChangeListener { view, hasFocus ->
-            if (!hasFocus) save() else view.postDelayed({ mainScroll.smoothScrollTo(0, view.bottom) }, 180)
-        }
-        tunnelTokenPart3.setOnFocusChangeListener { view, hasFocus ->
+        tunnelToken.setOnFocusChangeListener { view, hasFocus ->
             if (!hasFocus) save() else view.postDelayed({ mainScroll.smoothScrollTo(0, view.bottom) }, 180)
         }
         mcpAccessToken.setOnFocusChangeListener { view, hasFocus ->
@@ -168,9 +158,7 @@ class MainActivity : Activity() {
             }
         }
         tunnelId.onFocusChangeListener = focusListener
-        tunnelTokenPart1.onFocusChangeListener = focusListener
-        tunnelTokenPart2.onFocusChangeListener = focusListener
-        tunnelTokenPart3.onFocusChangeListener = focusListener
+        tunnelToken.onFocusChangeListener = focusListener
         tunnelHostname.onFocusChangeListener = focusListener
         mcpAccessToken.onFocusChangeListener = focusListener
 
@@ -203,27 +191,13 @@ class MainActivity : Activity() {
             .putString("cloudflare_tunnel_hostname", hostname)
             .apply()
         tunnelId.setText(id)
-        setTunnelTokenParts(token)
+        tunnelToken.setText(token)
         tunnelHostname.setText(hostname)
-    }
-
-    private fun combinedTunnelToken(): String =
-        tunnelTokenPart1.text.toString().trim() +
-            tunnelTokenPart2.text.toString().trim() +
-            tunnelTokenPart3.text.toString().trim()
-
-    private fun setTunnelTokenParts(token: String) {
-        val normalized = token.trim()
-        val firstEnd = (normalized.length + 2) / 3
-        val secondEnd = firstEnd + (normalized.length - firstEnd + 1) / 2
-        tunnelTokenPart1.setText(normalized.substring(0, firstEnd))
-        tunnelTokenPart2.setText(normalized.substring(firstEnd, secondEnd))
-        tunnelTokenPart3.setText(normalized.substring(secondEnd))
     }
 
     private fun loadTunnelSettings() {
         tunnelId.setText(preferences.getString("cloudflare_tunnel_id", ""))
-        setTunnelTokenParts(preferences.getString("cloudflare_tunnel_token", "")?.trim().orEmpty())
+        tunnelToken.setText(preferences.getString("cloudflare_tunnel_token", ""))
         tunnelHostname.setText(
             preferences.getString("cloudflare_tunnel_hostname", "")
         )
@@ -301,7 +275,7 @@ class MainActivity : Activity() {
     private fun saveTunnelSettings() {
         preferences.edit()
             .putString("cloudflare_tunnel_id", tunnelId.text.toString().trim())
-            .putString("cloudflare_tunnel_token", combinedTunnelToken())
+            .putString("cloudflare_tunnel_token", tunnelToken.text.toString().trim())
             .putString("cloudflare_tunnel_hostname", tunnelHostname.text.toString().trim())
             .putString("mcp_access_token", mcpAccessToken.text.toString().trim())
             .apply()
