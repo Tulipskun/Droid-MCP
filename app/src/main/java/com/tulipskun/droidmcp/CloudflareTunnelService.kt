@@ -52,7 +52,7 @@ class CloudflareTunnelService : Service() {
         val token = prefs.getString("cloudflare_tunnel_token", "")?.trim().orEmpty()
         val hostname = prefs.getString(
             "cloudflare_tunnel_hostname",
-            CloudflareTunnelConfig.DEFAULT_HOSTNAME
+            ""
         )?.trim().orEmpty()
 
         if (tunnelId.isBlank()) {
@@ -62,6 +62,9 @@ class CloudflareTunnelService : Service() {
             throw IllegalStateException(
                 "Cloudflare Tunnel token is required for an APK without cloudflared login"
             )
+        }
+        if (hostname.isBlank()) {
+            throw IllegalStateException("Cloudflare Tunnel hostname is required")
         }
 
         val home = File(filesDir, "cloudflared-home").apply { mkdirs() }
