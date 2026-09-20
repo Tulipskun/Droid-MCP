@@ -10,11 +10,11 @@ object ToolCatalog {
             "y" to percentage("vertical position, e.g. 25%"),
             required = listOf("x", "y")
         )))
-        put(tool("long_press", "Hold a screen coordinate for a duration.", schema(
+        put(tool("long_press", "Hold a screen coordinate for a duration. Defaults to 3 seconds.", schema(
             "x" to percentage("horizontal position, e.g. 50%"),
             "y" to percentage("vertical position, e.g. 25%"),
-            "duration_ms" to integer("hold duration in milliseconds, minimum 200"),
-            required = listOf("x", "y", "duration_ms")
+            "duration_ms" to integer("hold duration in milliseconds, default 3000, minimum 200"),
+            required = listOf("x", "y")
         )))
         put(tool("swipe", "Swipe between percentage screen coordinates.", schema(
             "x1" to percentage("start horizontal position, e.g. 10%"),
