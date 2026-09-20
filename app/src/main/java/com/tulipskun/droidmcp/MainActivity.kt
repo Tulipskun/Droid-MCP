@@ -181,10 +181,6 @@ class MainActivity : Activity() {
         refreshMcp()
         refreshTunnel()
         uiHandler.post(tunnelPoll)
-        if (preferences.getBoolean("auto_start", false)) {
-            startMcpIfNeeded()
-            uiHandler.postDelayed({ startTunnelIfNeeded() }, 1200)
-        }
     }
 
     override fun onPause() {
@@ -346,6 +342,8 @@ class MainActivity : Activity() {
         tunnelToggle.text = if (CloudflareTunnelService.isRunning) {
             "Stop Cloudflare Tunnel"
         } else "Start Cloudflare Tunnel"
+        tunnelToggle.isEnabled = McpService.isRunning || CloudflareTunnelService.isRunning
+        copyTunnelUrl.isEnabled = endpointUrl.isNotBlank()
     }
 
     companion object {
