@@ -430,8 +430,7 @@ class McpServer(
                 }
             }
 
-            if (value == '
-'.code) break
+            if (value == '\n'.code) break
             if (value != '\r'.code) bytes.add(value.toByte())
 
             if (bytes.size > 8192) {
@@ -474,28 +473,19 @@ class McpServer(
                 .append(status)
                 .append(' ')
                 .append(statusText(status))
-                .append("\r
-")
-            append("Connection: close\r
-")
+                .append("\r\n")
+            append("Connection: close\r\n")
             if (cors) {
-                append("Access-Control-Allow-Origin: null\r
-")
-                append("Access-Control-Allow-Methods: POST, OPTIONS\r
-")
-                append("Access-Control-Allow-Headers: Content-Type, MCP-Protocol-Version, Mcp-Method, Mcp-Name\r
-")
+                append("Access-Control-Allow-Origin: null\r\n")
+                append("Access-Control-Allow-Methods: POST, OPTIONS\r\n")
+                append("Access-Control-Allow-Headers: Content-Type, MCP-Protocol-Version, Mcp-Method, Mcp-Name\r\n")
             }
             if (contentType != null) {
-                append("Content-Type: ").append(contentType).append("\r
-")
+                append("Content-Type: ").append(contentType).append("\r\n")
             }
-            append("Content-Length: ").append(bytes.size).append("\r
-")
-            append("X-Content-Type-Options: nosniff\r
-")
-            append("\r
-")
+            append("Content-Length: ").append(bytes.size).append("\r\n")
+            append("X-Content-Type-Options: nosniff\r\n")
+            append("\r\n")
         }.toByteArray(StandardCharsets.UTF_8)
 
         output.write(headers)
@@ -507,8 +497,7 @@ class McpServer(
         200 -> "OK"
         202 -> "Accepted"
         204 -> "No Content"
-        400 -> "Bad Request"
-        401 -> "Unauthorized"
+        400 -> "Bad Request"\n        401 -> "Unauthorized"
         403 -> "Forbidden"
         404 -> "Not Found"
         405 -> "Method Not Allowed"
