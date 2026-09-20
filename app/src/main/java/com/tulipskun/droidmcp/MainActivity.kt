@@ -110,6 +110,11 @@ class MainActivity : Activity() {
         mcpAccessToken.setOnFocusChangeListener { view, hasFocus ->
             if (!hasFocus) saveMcpAccessToken() else view.postDelayed({ mainScroll.smoothScrollTo(0, view.bottom) }, 180)
         }
+
+        if (preferences.getBoolean("auto_start", false)) {
+            startMcpIfNeeded()
+            uiHandler.postDelayed({ startTunnelIfNeeded() }, 1200)
+        }
     }
 
     private fun installKeyboardInsetsHandling() {
