@@ -90,9 +90,14 @@ class CloudflareTunnelService : Service() {
         process = started
         setState(true, "https://$hostname/mcp", null)
 
+        val output = mutableListOf<String>()
         BufferedReader(InputStreamReader(started.inputStream)).use { reader ->
             while (true) {
                 val line = reader.readLine() ?: break
+                if (line.isNotBlank()) {
+                    output.add(line)
+                    if (output.size > MAX_OUTPUT_LINES) output.removeAt(0)
+                }
                 Log.i("DroidMCP-cloudflared", line)
             }
         }
@@ -101,7 +106,12 @@ class CloudflareTunnelService : Service() {
         process = null
 
         if (isRunning) {
-            setState(false, null, "cloudflared exited with code $exitCode")
+            val detail = output.joinToString(" | ").takeLast(MAX_ERROR_CHARS)
+            setState(false, null, if (detail.isBlank()) {
+                "cloudflared exited with code $exitCode"
+            } else {
+                "cloudflared exited with code $exitCode: $detail"
+            })
             stopSelf()
         }
     }
@@ -165,6 +175,8 @@ class CloudflareTunnelService : Service() {
     companion object {
         private const val CHANNEL_ID = "droid_mcp_cloudflare"
         private const val NOTIFICATION_ID = 8788
+        private const val MAX_OUTPUT_LINES = 12
+        private const val MAX_ERROR_CHARS = 700
 
         @Volatile
         var isRunning: Boolean = false
