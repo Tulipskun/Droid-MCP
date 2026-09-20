@@ -179,6 +179,13 @@ class MainActivity : Activity() {
         tunnelHostname.setText(
             preferences.getString("cloudflare_tunnel_hostname", "")
         )
+        var accessToken = preferences.getString("mcp_access_token", "")?.trim().orEmpty()
+        if (accessToken.isBlank()) {
+            accessToken = java.util.UUID.randomUUID().toString().replace("-", "") +
+                java.util.UUID.randomUUID().toString().replace("-", "")
+            preferences.edit().putString("mcp_access_token", accessToken).apply()
+        }
+        mcpAccessToken.setText(accessToken)
     }
 
     override fun onDestroy() {
