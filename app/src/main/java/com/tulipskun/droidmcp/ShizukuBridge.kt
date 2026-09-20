@@ -21,7 +21,7 @@ import java.util.concurrent.TimeUnit
 class ShizukuBridge(private val preferences: SharedPreferences) {
     private val lock = Any()
 
-    fun checkConnection(): String {
+    fun preferences(): SharedPreferences = preferences\n\n    fun checkConnection(): String {
         ensureReady()
 
         val output = runCommand("echo Droid-MCP").stdout

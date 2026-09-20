@@ -83,6 +83,8 @@ class McpServer(
                     return
                 }
 
+                validateAuthentication(headers)
+
                 val origin = headers["origin"]
                 if (origin != null && origin != "null") {
                     writeResponse(
@@ -167,6 +169,25 @@ class McpServer(
         }
 
         return headers
+    }
+
+    private fun validateAuthentication(headers: Map<String, String>) {
+        val prefs = executor.preferences()
+        val expected = prefs.getString("mcp_access_token", "")?.trim().orEmpty()
+        if (expected.isBlank()) {
+            throw ProtocolException("MCP access token is not configured", 401)
+        }
+        val authorization = headers["authorization"]?.trim().orEmpty()
+        val supplied = if (authorization.startsWith("Bearer ", ignoreCase = true)) {
+            authorization.substring(7).trim()
+        } else ""
+        if (supplied.isBlank() || !java.security.MessageDigest.isEqual(
+                supplied.toByteArray(StandardCharsets.UTF_8),
+                expected.toByteArray(StandardCharsets.UTF_8)
+            )
+        ) {
+            throw ProtocolException("Unauthorized", 401)
+        }
     }
 
     private fun validateProtocolHeader(headers: Map<String, String>) {
@@ -476,7 +497,7 @@ class McpServer(
         200 -> "OK"
         202 -> "Accepted"
         204 -> "No Content"
-        400 -> "Bad Request"
+        400 -> "Bad Request"\n        401 -> "Unauthorized"
         403 -> "Forbidden"
         404 -> "Not Found"
         405 -> "Method Not Allowed"
