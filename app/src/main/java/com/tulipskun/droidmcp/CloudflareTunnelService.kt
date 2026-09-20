@@ -74,6 +74,8 @@ class CloudflareTunnelService : Service() {
             "--no-autoupdate",
             "--protocol",
             "http2",
+            "--metrics",
+            "127.0.0.1:20241",
             "run",
             "--token",
             token
@@ -84,7 +86,7 @@ class CloudflareTunnelService : Service() {
             .apply {
                 environment()["HOME"] = home.absolutePath
                 environment()["TMPDIR"] = cacheDir.absolutePath
-                environment()["GODEBUG"] = "netdns=cgo"
+                environment()["GODEBUG"] = "netdns=go"
             }
             .start()
 
