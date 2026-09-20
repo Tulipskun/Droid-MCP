@@ -30,8 +30,6 @@ class MainActivity : Activity() {
     private lateinit var tunnelEndpoint: TextView
     private lateinit var copyTunnelUrl: Button
     private lateinit var tunnelToggle: Button
-    private lateinit var mcpAccessToken: EditText
-    private lateinit var copyMcpToken: Button
     private lateinit var mcpToggle: Button
     private lateinit var shizukuConnect: Button
     private lateinit var keyboardEnable: Button
@@ -69,8 +67,6 @@ class MainActivity : Activity() {
         tunnelEndpoint = findViewById(R.id.tunnel_endpoint)
         copyTunnelUrl = findViewById(R.id.copy_tunnel_url)
         tunnelToggle = findViewById(R.id.tunnel_toggle)
-        mcpAccessToken = findViewById(R.id.mcp_access_token)
-        copyMcpToken = findViewById(R.id.copy_mcp_token)
         mcpToggle = findViewById(R.id.toggle)
         shizukuConnect = findViewById(R.id.connect_shizuku)
         keyboardEnable = findViewById(R.id.enable_keyboard)
@@ -105,12 +101,6 @@ class MainActivity : Activity() {
         mcpToggle.setOnClickListener { toggleMcp() }
         tunnelToggle.setOnClickListener { toggleTunnel() }
         copyTunnelUrl.setOnClickListener { copyTunnelUrl() }
-        copyMcpToken.setOnClickListener { copyMcpAccessToken() }
-
-        mcpAccessToken.setOnFocusChangeListener { view, hasFocus ->
-            if (!hasFocus) saveMcpAccessToken() else view.postDelayed({ mainScroll.smoothScrollTo(0, view.bottom) }, 180)
-        }
-
         if (preferences.getBoolean("auto_start", false)) {
             startMcpIfNeeded()
             uiHandler.postDelayed({ startTunnelIfNeeded() }, 1200)
@@ -146,8 +136,6 @@ class MainActivity : Activity() {
                 }, 180)
             }
         }
-        mcpAccessToken.onFocusChangeListener = focusListener
-
         mainScroll.viewTreeObserver.addOnGlobalLayoutListener {
             if (currentFocus is EditText) {
                 val focused = currentFocus
@@ -166,13 +154,6 @@ class MainActivity : Activity() {
     }
 
     private fun loadTunnelSettings() {
-        var accessToken = preferences.getString("mcp_access_token", "")?.trim().orEmpty()
-        if (accessToken.isBlank()) {
-            accessToken = java.util.UUID.randomUUID().toString().replace("-", "") +
-                java.util.UUID.randomUUID().toString().replace("-", "")
-            preferences.edit().putString("mcp_access_token", accessToken).apply()
-        }
-        mcpAccessToken.setText(accessToken)
     }
 
     override fun onDestroy() {
@@ -259,10 +240,6 @@ class MainActivity : Activity() {
         uiHandler.postDelayed({ refreshMcp() }, 300)
     }
 
-    private fun saveMcpAccessToken() {
-        preferences.edit().putString("mcp_access_token", mcpAccessToken.text.toString().trim()).apply()
-    }
-
     private fun toggleTunnel() {
         if (!McpService.isRunning) {
             Toast.makeText(this, "Start MCP Server first", Toast.LENGTH_SHORT).show()
@@ -285,14 +262,6 @@ class MainActivity : Activity() {
         } else "Stopped"
         endpoint.text = "http://<ANDROID_IP>:" + CloudflareTunnelConfig.LOCAL_PORT + "/mcp"
         mcpToggle.text = if (McpService.isRunning) "Stop MCP Server" else "Start MCP Server"
-    }
-
-    private fun copyMcpAccessToken() {
-        val token = mcpAccessToken.text.toString().trim()
-        if (token.isBlank()) return
-        getSystemService(ClipboardManager::class.java)
-            .setPrimaryClip(ClipData.newPlainText("Droid-MCP Access Token", token))
-        Toast.makeText(this, "MCP access token copied", Toast.LENGTH_SHORT).show()
     }
 
     private fun copyTunnelUrl() {
