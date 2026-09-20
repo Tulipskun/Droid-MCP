@@ -380,9 +380,7 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
             0,
             InputDevice.SOURCE_TOUCHSCREEN,
             0
-        ).apply {
-            setDisplayId(0)
-        }
+        )
     }
 
     private fun injectMotionEvent(event: MotionEvent) {
