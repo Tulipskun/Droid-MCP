@@ -59,8 +59,10 @@ class CloudflareTunnelService : Service() {
             binary.absolutePath,
             "tunnel",
             "--no-autoupdate",
+            "--protocol",
+            "http2",
             "--loglevel",
-            "info",
+            "debug",
             "--url",
             CloudflareTunnelConfig.LOCAL_ORIGIN
         ).redirectErrorStream(true).apply {
