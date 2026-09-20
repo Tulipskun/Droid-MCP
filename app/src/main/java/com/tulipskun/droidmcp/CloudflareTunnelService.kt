@@ -61,6 +61,7 @@ class CloudflareTunnelService : Service() {
             "--no-autoupdate",
             "--protocol",
             "http2",
+            "--no-prechecks",
             "--loglevel",
             "debug",
             "--url",
