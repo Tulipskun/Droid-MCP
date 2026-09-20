@@ -152,31 +152,30 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
         }
     }
 
-    fun tap(x: Int, y: Int) {
-        runCommand(
-            "input tap " + x + " " + y
-        )
+    fun tap(x: String, y: String) {
+        val size = screenSize()
+        val px = percentToPixel(x, size.width)
+        val py = percentToPixel(y, size.height)
+        runCommand("input tap $px $py")
     }
 
     fun swipe(
-        x1: Int,
-        y1: Int,
-        x2: Int,
-        y2: Int,
+        x1: String,
+        y1: String,
+        x2: String,
+        y2: String,
         durationMs: Long
     ) {
         require(durationMs >= 0) {
             "duration_ms must be >= 0"
         }
 
-        runCommand(
-            "input swipe " +
-                x1 + " " +
-                y1 + " " +
-                x2 + " " +
-                y2 + " " +
-                durationMs
-        )
+        val size = screenSize()
+        val px1 = percentToPixel(x1, size.width)
+        val py1 = percentToPixel(y1, size.height)
+        val px2 = percentToPixel(x2, size.width)
+        val py2 = percentToPixel(y2, size.height)
+        runCommand("input swipe $px1 $py1 $px2 $py2 $durationMs")
     }
 
     fun gesture(points: JSONArray) {
@@ -184,12 +183,13 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
             "gesture requires at least 2 points"
         }
 
+        val size = screenSize()
         val command = StringBuilder()
 
         for (i in 0 until points.length()) {
             val point = points.getJSONObject(i)
-            val x = point.getInt("x")
-            val y = point.getInt("y")
+            val x = point.getString("x")
+            val y = point.getString("y")
             val delay = point.getLong("delay_ms")
 
             require(delay >= 0) {
@@ -199,7 +199,7 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
             if (i == 0) {
                 command.append(
                     "input motionevent DOWN " +
-                        x + " " + y
+                        percentToPixel(x, size.width) + " " + percentToPixel(y, size.height)
                 )
             } else {
                 command.append(
@@ -207,7 +207,7 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
                 )
                 command.append(
                     "; input motionevent MOVE " +
-                        x + " " + y
+                        percentToPixel(x, size.width) + " " + percentToPixel(y, size.height)
                 )
             }
         }
@@ -216,8 +216,8 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
 
         command.append(
             "; input motionevent UP " +
-                last.getInt("x") + " " +
-                last.getInt("y")
+                percentToPixel(last.getString("x"), size.width) + " " +
+                percentToPixel(last.getString("y"), size.height)
         )
 
         runCommand(command.toString())
@@ -251,12 +251,13 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
                 pointArrays[i] = points
             }
 
+            val size = screenSize()
             val positions = Array(count) { IntArray(2) }
 
             for (i in 0 until count) {
                 val point = pointArrays[i]!!.getJSONObject(0)
-                positions[i][0] = point.getInt("x")
-                positions[i][1] = point.getInt("y")
+                positions[i][0] = percentToPixel(point.getString("x"), size.width)
+                positions[i][1] = percentToPixel(point.getString("y"), size.height)
             }
 
             val downTime = SystemClock.uptimeMillis()
@@ -302,8 +303,8 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
                     }
 
                     delayMs = maxOf(delayMs, delay)
-                    positions[i][0] = point.getInt("x")
-                    positions[i][1] = point.getInt("y")
+                    positions[i][0] = percentToPixel(point.getString("x"), size.width)
+                    positions[i][1] = percentToPixel(point.getString("y"), size.height)
                 }
 
                 if (delayMs > 0) {
@@ -341,6 +342,24 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
                 )
             )
         }
+    }
+
+    private data class ScreenSize(val width: Int, val height: Int)
+
+    private fun screenSize(): ScreenSize {
+        val output = runCommand("wm size").stdout.toString(StandardCharsets.UTF_8)
+        val match = Regex("[0-9]+x[0-9]+").findAll(output).lastOrNull()
+            ?: throw IllegalStateException("Unable to determine screen size")
+        val parts = match.value.split("x")
+        return ScreenSize(parts[0].toInt(), parts[1].toInt())
+    }
+
+    private fun percentToPixel(value: String, size: Int): Int {
+        val match = Regex("^ *([0-9]+([.][0-9]+)?)% *$").matchEntire(value)
+            ?: throw IllegalArgumentException("Coordinate must be a percentage such as 50%")
+        val percent = match.groupValues[1].toDouble()
+        require(percent in 0.0..100.0) { "Coordinate percentage must be between 0% and 100%" }
+        return kotlin.math.round(size * percent / 100.0).toInt().coerceIn(0, size - 1)
     }
 
     private fun createMotionEvent(

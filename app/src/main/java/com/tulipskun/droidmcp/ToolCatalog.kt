@@ -5,16 +5,16 @@ import org.json.JSONObject
 
 object ToolCatalog {
     fun definitions(): JSONArray = JSONArray().apply {
-        put(tool("tap", "Tap a screen coordinate.", schema(
-            "x" to integer("screen x"),
-            "y" to integer("screen y"),
+        put(tool("tap", "Tap a screen coordinate using percentages of the current screen.", schema(
+            "x" to percentage("horizontal position, e.g. 50%"),
+            "y" to percentage("vertical position, e.g. 25%"),
             required = listOf("x", "y")
         )))
-        put(tool("swipe", "Swipe between two coordinates.", schema(
-            "x1" to integer("start x"),
-            "y1" to integer("start y"),
-            "x2" to integer("end x"),
-            "y2" to integer("end y"),
+        put(tool("swipe", "Swipe between percentage screen coordinates.", schema(
+            "x1" to percentage("start horizontal position, e.g. 10%"),
+            "y1" to percentage("start vertical position, e.g. 80%"),
+            "x2" to percentage("end horizontal position, e.g. 90%"),
+            "y2" to percentage("end vertical position, e.g. 20%"),
             "duration_ms" to integer("duration in milliseconds"),
             required = listOf("x1", "y1", "x2", "y2", "duration_ms")
         )))
@@ -47,8 +47,8 @@ object ToolCatalog {
                     .put(
                         "properties",
                         JSONObject()
-                            .put("x", integer("x"))
-                            .put("y", integer("y"))
+                            .put("x", percentage("horizontal position, e.g. 50%"))
+                            .put("y", percentage("vertical position, e.g. 25%"))
                             .put("delay_ms", integer("delay after point"))
                     )
                     .put("required", JSONArray(listOf("x", "y", "delay_ms")))
@@ -72,6 +72,11 @@ object ToolCatalog {
 
     private fun integer(description: String): JSONObject =
         JSONObject().put("type", "integer").put("description", description)
+    private fun percentage(description: String): JSONObject =
+        JSONObject()
+            .put("type", "string")
+            .put("pattern", "^ *([0-9]+([.][0-9]+)?)% *$")
+            .put("description", description)
 
     private fun schema(
         vararg properties: Pair<String, JSONObject>,
