@@ -526,6 +526,7 @@ class McpServer(
         )
         private const val UNSUPPORTED_PROTOCOL_VERSION = -32602
         private const val MAX_BODY = 1024 * 1024
-        private const val SCREENSHOT_DELAY_MILLIS = 1000L\n        private const val DEFAULT_LONG_PRESS_DURATION_MILLIS = 3000L
+        private const val SCREENSHOT_DELAY_MILLIS = 1000L
+        private const val DEFAULT_LONG_PRESS_DURATION_MILLIS = 3000L
     }
 }
