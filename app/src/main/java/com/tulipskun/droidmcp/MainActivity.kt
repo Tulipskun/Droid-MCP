@@ -28,11 +28,7 @@ class MainActivity : Activity() {
     private lateinit var tunnelStatus: TextView
     private lateinit var tunnelEndpoint: TextView
     private lateinit var copyTunnelUrl: Button
-    private lateinit var tunnelInstallStatus: TextView
     private lateinit var tunnelToggle: Button
-    private lateinit var tunnelId: EditText
-    private lateinit var tunnelToken: EditText
-    private lateinit var tunnelHostname: EditText
     private lateinit var mcpAccessToken: EditText
     private lateinit var copyMcpToken: Button
     private lateinit var mcpToggle: Button
@@ -69,11 +65,7 @@ class MainActivity : Activity() {
         tunnelStatus = findViewById(R.id.tunnel_status)
         tunnelEndpoint = findViewById(R.id.tunnel_endpoint)
         copyTunnelUrl = findViewById(R.id.copy_tunnel_url)
-        tunnelInstallStatus = findViewById(R.id.tunnel_install_status)
         tunnelToggle = findViewById(R.id.tunnel_toggle)
-        tunnelId = findViewById(R.id.tunnel_id)
-        tunnelToken = findViewById(R.id.tunnel_token)
-        tunnelHostname = findViewById(R.id.tunnel_hostname)
         mcpAccessToken = findViewById(R.id.mcp_access_token)
         copyMcpToken = findViewById(R.id.copy_mcp_token)
         mcpToggle = findViewById(R.id.toggle)
@@ -83,7 +75,6 @@ class MainActivity : Activity() {
         installKeyboardInsetsHandling()
 
         loadTunnelSettings()
-        applyTunnelConfigIntent(intent)
 
         Shizuku.addRequestPermissionResultListener(shizukuPermissionListener)
 
@@ -105,26 +96,8 @@ class MainActivity : Activity() {
         copyTunnelUrl.setOnClickListener { copyTunnelUrl() }
         copyMcpToken.setOnClickListener { copyMcpAccessToken() }
 
-        val save = {
-            preferences.edit()
-                .putString("cloudflare_tunnel_id", tunnelId.text.toString().trim())
-                .putString("cloudflare_tunnel_token", tunnelToken.text.toString().trim())
-                .putString("cloudflare_tunnel_hostname", tunnelHostname.text.toString().trim())
-                .putString("mcp_access_token", mcpAccessToken.text.toString().trim())
-                .apply()
-            Toast.makeText(this, "Cloudflare Tunnel settings saved", Toast.LENGTH_SHORT).show()
-        }
-        tunnelId.setOnFocusChangeListener { view, hasFocus ->
-            if (!hasFocus) save() else view.postDelayed({ mainScroll.smoothScrollTo(0, view.bottom) }, 180)
-        }
-        tunnelToken.setOnFocusChangeListener { view, hasFocus ->
-            if (!hasFocus) save() else view.postDelayed({ mainScroll.smoothScrollTo(0, view.bottom) }, 180)
-        }
         mcpAccessToken.setOnFocusChangeListener { view, hasFocus ->
-            if (!hasFocus) save() else view.postDelayed({ mainScroll.smoothScrollTo(0, view.bottom) }, 180)
-        }
-        tunnelHostname.setOnFocusChangeListener { view, hasFocus ->
-            if (!hasFocus) save() else view.postDelayed({ mainScroll.smoothScrollTo(0, view.bottom) }, 180)
+            if (!hasFocus) saveMcpAccessToken() else view.postDelayed({ mainScroll.smoothScrollTo(0, view.bottom) }, 180)
         }
     }
 
@@ -157,9 +130,6 @@ class MainActivity : Activity() {
                 }, 180)
             }
         }
-        tunnelId.onFocusChangeListener = focusListener
-        tunnelToken.onFocusChangeListener = focusListener
-        tunnelHostname.onFocusChangeListener = focusListener
         mcpAccessToken.onFocusChangeListener = focusListener
 
         mainScroll.viewTreeObserver.addOnGlobalLayoutListener {
@@ -179,28 +149,7 @@ class MainActivity : Activity() {
         mainScroll.requestApplyInsets()
     }
 
-    private fun applyTunnelConfigIntent(intent: Intent?) {
-        if (intent?.action != "com.tulipskun.droidmcp.CONFIGURE_TUNNEL") return
-        val id = intent.getStringExtra("tunnel_id")?.trim().orEmpty()
-        val token = intent.getStringExtra("tunnel_token")?.trim().orEmpty()
-        val hostname = intent.getStringExtra("tunnel_hostname")?.trim().orEmpty()
-        if (id.isBlank() || token.isBlank() || hostname.isBlank()) return
-        preferences.edit()
-            .putString("cloudflare_tunnel_id", id)
-            .putString("cloudflare_tunnel_token", token)
-            .putString("cloudflare_tunnel_hostname", hostname)
-            .apply()
-        tunnelId.setText(id)
-        tunnelToken.setText(token)
-        tunnelHostname.setText(hostname)
-    }
-
     private fun loadTunnelSettings() {
-        tunnelId.setText(preferences.getString("cloudflare_tunnel_id", ""))
-        tunnelToken.setText(preferences.getString("cloudflare_tunnel_token", ""))
-        tunnelHostname.setText(
-            preferences.getString("cloudflare_tunnel_hostname", "")
-        )
         var accessToken = preferences.getString("mcp_access_token", "")?.trim().orEmpty()
         if (accessToken.isBlank()) {
             accessToken = java.util.UUID.randomUUID().toString().replace("-", "") +
@@ -272,17 +221,11 @@ class MainActivity : Activity() {
         uiHandler.postDelayed({ refreshMcp() }, 300)
     }
 
-    private fun saveTunnelSettings() {
-        preferences.edit()
-            .putString("cloudflare_tunnel_id", tunnelId.text.toString().trim())
-            .putString("cloudflare_tunnel_token", tunnelToken.text.toString().trim())
-            .putString("cloudflare_tunnel_hostname", tunnelHostname.text.toString().trim())
-            .putString("mcp_access_token", mcpAccessToken.text.toString().trim())
-            .apply()
+    private fun saveMcpAccessToken() {
+        preferences.edit().putString("mcp_access_token", mcpAccessToken.text.toString().trim()).apply()
     }
 
     private fun toggleTunnel() {
-        saveTunnelSettings()
         if (!McpService.isRunning) {
             Toast.makeText(this, "Start MCP Server first", Toast.LENGTH_SHORT).show()
             return
@@ -317,7 +260,7 @@ class MainActivity : Activity() {
     private fun copyTunnelUrl() {
         val url = CloudflareTunnelService.tunnelUrl
             ?: preferences.getString("tunnel_url", null)
-            ?: buildHostnameUrl()
+            ?: ""
         if (url.isBlank()) {
             Toast.makeText(this, "Cloudflare Tunnel URL is not configured", Toast.LENGTH_SHORT).show()
             return
@@ -330,10 +273,6 @@ class MainActivity : Activity() {
         getSystemService(ClipboardManager::class.java)
             .setPrimaryClip(ClipData.newPlainText("Droid-MCP URL", endpoint))
         Toast.makeText(this, "MCP URL copied", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun buildHostnameUrl(): String {
-        return normalizeMcpUrl(tunnelHostname.text.toString())
     }
 
     private fun normalizeMcpUrl(value: String): String {
@@ -352,7 +291,6 @@ class MainActivity : Activity() {
     }
 
     private fun refreshTunnel() {
-        val installStatus = preferences.getString("cloudflared_install_status", null)
         val storedRunning = preferences.getBoolean("tunnel_running", false)
         val storedUrl = preferences.getString("tunnel_url", null)
         val storedError = preferences.getString("tunnel_error", null)
@@ -360,14 +298,13 @@ class MainActivity : Activity() {
         val url = CloudflareTunnelService.tunnelUrl ?: storedUrl
         val error = CloudflareTunnelService.lastError ?: storedError
 
-        tunnelInstallStatus.text = installStatus ?: "Not installed"
         tunnelStatus.text = when {
             error != null -> error
-            url != null -> "Named Tunnel active"
-            running -> "Starting Named Tunnel..."
+            url != null -> "Quick Tunnel active"
+            running -> "Starting Quick Tunnel..."
             else -> "Stopped"
         }
-        val endpointUrl = normalizeMcpUrl(url ?: tunnelHostname.text.toString())
+        val endpointUrl = normalizeMcpUrl(url ?: "")
         tunnelEndpoint.text = if (endpointUrl.isBlank()) "Not configured" else endpointUrl
         tunnelToggle.text = if (CloudflareTunnelService.isRunning) {
             "Stop Cloudflare Tunnel"

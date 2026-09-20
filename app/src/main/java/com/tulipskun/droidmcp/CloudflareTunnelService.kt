@@ -47,26 +47,6 @@ class CloudflareTunnelService : Service() {
     }
 
     private fun startTunnel(binary: File) {
-        val prefs = getSharedPreferences("droid_mcp", MODE_PRIVATE)
-        val tunnelId = prefs.getString("cloudflare_tunnel_id", "")?.trim().orEmpty()
-        val token = prefs.getString("cloudflare_tunnel_token", "")?.trim().orEmpty()
-        val hostname = prefs.getString(
-            "cloudflare_tunnel_hostname",
-            ""
-        )?.trim().orEmpty()
-
-        if (tunnelId.isBlank()) {
-            throw IllegalStateException("Cloudflare Tunnel ID is required")
-        }
-        if (token.isBlank()) {
-            throw IllegalStateException(
-                "Cloudflare Tunnel token is required for an APK without cloudflared login"
-            )
-        }
-        if (hostname.isBlank()) {
-            throw IllegalStateException("Cloudflare Tunnel hostname is required")
-        }
-
         val home = File(filesDir, "cloudflared-home").apply { mkdirs() }
         val command = listOf(
             binary.absolutePath,
@@ -76,11 +56,8 @@ class CloudflareTunnelService : Service() {
             "http2",
             "--metrics",
             "127.0.0.1:20241",
-            "run",
-            "--dns-resolver-addrs",
-            "1.1.1.1:53",
-            "--token",
-            token
+            "--url",
+            "http://127.0.0.1:" + CloudflareTunnelConfig.LOCAL_PORT
         )
 
         val started = ProcessBuilder(command)
@@ -93,8 +70,6 @@ class CloudflareTunnelService : Service() {
             .start()
 
         process = started
-        setState(true, "https://$hostname/mcp", null)
-
         val output = mutableListOf<String>()
         BufferedReader(InputStreamReader(started.inputStream)).use { reader ->
             while (true) {
@@ -102,6 +77,15 @@ class CloudflareTunnelService : Service() {
                 if (line.isNotBlank()) {
                     output.add(line)
                     if (output.size > MAX_OUTPUT_LINES) output.removeAt(0)
+                    val marker = "https://"
+                    val start = line.indexOf(marker)
+                    if (start >= 0) {
+                        val candidate = line.substring(start).split(" ", "\\t").firstOrNull()
+                            ?.trimEnd('.', ',', ')')
+                        if (candidate != null && candidate.contains("trycloudflare.com")) {
+                            setState(true, candidate.trimEnd('/') + "/mcp", null)
+                        }
+                    }
                 }
                 Log.i("DroidMCP-cloudflared", line)
             }
@@ -156,8 +140,8 @@ class CloudflareTunnelService : Service() {
             notification(
                 when {
                     error != null -> error
-                    url != null -> "Named Tunnel active"
-                    running -> "Starting Named Tunnel"
+                    url != null -> "Quick Tunnel active"
+                    running -> "Starting Quick Tunnel"
                     else -> "Cloudflare Tunnel stopped"
                 }
             )
