@@ -83,6 +83,7 @@ class MainActivity : Activity() {
         installKeyboardInsetsHandling()
 
         loadTunnelSettings()
+        applyTunnelConfigIntent(intent)
 
         Shizuku.addRequestPermissionResultListener(shizukuPermissionListener)
 
@@ -130,6 +131,11 @@ class MainActivity : Activity() {
     private fun installKeyboardInsetsHandling() {
         val baseBottomPadding = mainScroll.paddingBottom
         mainScroll.setOnApplyWindowInsetsListener { view, insets ->
+            val systemBottom = if (Build.VERSION.SDK_INT >= 30) {
+                insets.getInsets(WindowInsets.Type.systemBars()).bottom
+            } else {
+                0
+            }
             val imeBottom = if (Build.VERSION.SDK_INT >= 30) {
                 insets.getInsets(WindowInsets.Type.ime()).bottom
             } else {
@@ -139,7 +145,7 @@ class MainActivity : Activity() {
                 view.paddingLeft,
                 view.paddingTop,
                 view.paddingRight,
-                baseBottomPadding + imeBottom
+                baseBottomPadding + maxOf(systemBottom, imeBottom)
             )
             insets
         }
@@ -171,6 +177,22 @@ class MainActivity : Activity() {
             }
         }
         mainScroll.requestApplyInsets()
+    }
+
+    private fun applyTunnelConfigIntent(intent: Intent?) {
+        if (intent?.action != "com.tulipskun.droidmcp.CONFIGURE_TUNNEL") return
+        val id = intent.getStringExtra("tunnel_id")?.trim().orEmpty()
+        val token = intent.getStringExtra("tunnel_token")?.trim().orEmpty()
+        val hostname = intent.getStringExtra("tunnel_hostname")?.trim().orEmpty()
+        if (id.isBlank() || token.isBlank() || hostname.isBlank()) return
+        preferences.edit()
+            .putString("cloudflare_tunnel_id", id)
+            .putString("cloudflare_tunnel_token", token)
+            .putString("cloudflare_tunnel_hostname", hostname)
+            .apply()
+        tunnelId.setText(id)
+        tunnelToken.setText(token)
+        tunnelHostname.setText(hostname)
     }
 
     private fun loadTunnelSettings() {
