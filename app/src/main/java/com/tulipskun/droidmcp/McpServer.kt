@@ -430,8 +430,7 @@ class McpServer(
                 }
             }
 
-            if (value == '
-'.code) break
+            if (value == '\n'.code) break
             if (value != '\r'.code) bytes.add(value.toByte())
 
             if (bytes.size > 8192) {
