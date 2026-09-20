@@ -11,7 +11,10 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.view.View
+import android.view.WindowInsets
 import android.view.inputmethod.InputMethodManager
+import android.widget.ScrollView
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -34,6 +37,7 @@ class MainActivity : Activity() {
     private lateinit var shizukuConnect: Button
     private lateinit var keyboardEnable: Button
     private lateinit var keyboardSwitch: Button
+    private lateinit var mainScroll: ScrollView
 
     private val preferences by lazy {
         getSharedPreferences("droid_mcp", MODE_PRIVATE)
@@ -55,6 +59,7 @@ class MainActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+        mainScroll = findViewById(R.id.main_scroll)
 
         shizukuStatus = findViewById(R.id.shizuku_status)
         mcpStatus = findViewById(R.id.mcp_status)
@@ -71,6 +76,7 @@ class MainActivity : Activity() {
         shizukuConnect = findViewById(R.id.connect_shizuku)
         keyboardEnable = findViewById(R.id.enable_keyboard)
         keyboardSwitch = findViewById(R.id.switch_keyboard)
+        installKeyboardInsetsHandling()
 
         loadTunnelSettings()
 
@@ -101,9 +107,60 @@ class MainActivity : Activity() {
                 .apply()
             Toast.makeText(this, "Cloudflare Tunnel settings saved", Toast.LENGTH_SHORT).show()
         }
-        tunnelId.setOnFocusChangeListener { _, hasFocus -> if (!hasFocus) save() }
-        tunnelToken.setOnFocusChangeListener { _, hasFocus -> if (!hasFocus) save() }
-        tunnelHostname.setOnFocusChangeListener { _, hasFocus -> if (!hasFocus) save() }
+        tunnelId.setOnFocusChangeListener { view, hasFocus ->
+            if (!hasFocus) save() else view.postDelayed({ mainScroll.smoothScrollTo(0, view.bottom) }, 180)
+        }
+        tunnelToken.setOnFocusChangeListener { view, hasFocus ->
+            if (!hasFocus) save() else view.postDelayed({ mainScroll.smoothScrollTo(0, view.bottom) }, 180)
+        }
+        tunnelHostname.setOnFocusChangeListener { view, hasFocus ->
+            if (!hasFocus) save() else view.postDelayed({ mainScroll.smoothScrollTo(0, view.bottom) }, 180)
+        }
+    }
+
+    private fun installKeyboardInsetsHandling() {
+        val baseBottomPadding = mainScroll.paddingBottom
+        mainScroll.setOnApplyWindowInsetsListener { view, insets ->
+            val imeBottom = if (Build.VERSION.SDK_INT >= 30) {
+                insets.getInsets(WindowInsets.Type.ime()).bottom
+            } else {
+                0
+            }
+            view.setPadding(
+                view.paddingLeft,
+                view.paddingTop,
+                view.paddingRight,
+                baseBottomPadding + imeBottom
+            )
+            insets
+        }
+
+        val focusListener = View.OnFocusChangeListener { view, hasFocus ->
+            if (hasFocus) {
+                view.postDelayed({
+                    mainScroll.smoothScrollTo(0, view.bottom.coerceAtLeast(0))
+                }, 180)
+            }
+        }
+        tunnelId.onFocusChangeListener = focusListener
+        tunnelToken.onFocusChangeListener = focusListener
+        tunnelHostname.onFocusChangeListener = focusListener
+
+        mainScroll.viewTreeObserver.addOnGlobalLayoutListener {
+            if (currentFocus is EditText) {
+                val focused = currentFocus
+                focused?.post {
+                    val rect = android.graphics.Rect()
+                    focused.getDrawingRect(rect)
+                    mainScroll.offsetDescendantRectToMyCoords(focused, rect)
+                    val visibleBottom = mainScroll.height - mainScroll.paddingBottom
+                    if (rect.bottom > visibleBottom) {
+                        mainScroll.smoothScrollBy(0, rect.bottom - visibleBottom + 32)
+                    }
+                }
+            }
+        }
+        mainScroll.requestApplyInsets()
     }
 
     private fun loadTunnelSettings() {
