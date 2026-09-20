@@ -464,18 +464,19 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
     }
 
     fun inputText(text: String) {
-        val escaped =
-            "'" +
-                text.replace(
-                    "'",
-                    "'\\''"
-                ) +
-                "'"
+        val escaped = shellQuote(text)
 
-        runCommand(
-            "input text " + escaped
-        )
+        if (text.all { it.code < 128 }) {
+            runCommand("input text " + escaped)
+            return
+        }
+
+        runCommand("cmd clipboard set text " + escaped)
+        runCommand("input keyevent 279")
     }
+
+    private fun shellQuote(value: String): String =
+        "'" + value.replace("'", "'\\''") + "'"
 
     fun screenshot(): ByteArray {
         val png = runCommand("screencap -p").stdout
