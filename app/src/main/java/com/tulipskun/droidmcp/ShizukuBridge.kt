@@ -164,6 +164,20 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
         runCommand("input tap $px $py")
     }
 
+    fun longPress(x: String, y: String, durationMs: Long) {
+        require(durationMs >= 200) { "duration_ms must be >= 200" }
+        val size = screenSize()
+        val px = percentToPixel(x, size.width)
+        val py = percentToPixel(y, size.height)
+        val downTime = SystemClock.uptimeMillis()
+        injectMotionEvent(createMotionEvent(downTime, MotionEvent.ACTION_DOWN, intArrayOf(0), arrayOf(intArrayOf(px, py))))
+        try {
+            Thread.sleep(durationMs)
+        } finally {
+            injectMotionEvent(createMotionEvent(downTime, MotionEvent.ACTION_UP, intArrayOf(0), arrayOf(intArrayOf(px, py))))
+        }
+    }
+
     fun swipe(
         x1: String,
         y1: String,
