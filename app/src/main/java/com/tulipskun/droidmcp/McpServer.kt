@@ -132,7 +132,7 @@ class McpServer(
             } catch (e: ProtocolException) {
                 writeResponse(
                     output,
-                    400,
+                    if (e.code == 401) 401 else 400,
                     "application/json",
                     error(
                         null,
