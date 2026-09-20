@@ -11,7 +11,6 @@ import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
 import java.util.concurrent.Executors
-import java.util.regex.Pattern
 
 class CloudflareTunnelService : Service() {
     private val executor = Executors.newSingleThreadExecutor()
@@ -29,10 +28,6 @@ class CloudflareTunnelService : Service() {
                 val binary = TermuxCloudflaredInstaller.ensureInstalled(this)
                 startTunnel(binary)
             } catch (error: Throwable) {
-                getSharedPreferences("droid_mcp", MODE_PRIVATE)
-                    .edit()
-                    .putString("cloudflared_install_status", "Failed: " + (error.message ?: "installation failed"))
-                    .apply()
                 setState(false, null, error.message ?: "Cloudflare Tunnel failed")
                 stopSelf()
             }
@@ -41,54 +36,61 @@ class CloudflareTunnelService : Service() {
 
     private fun ensureMcpServer() {
         if (McpService.isRunning) return
-
         startForegroundService(Intent(this, McpService::class.java))
-
         repeat(50) {
             if (McpService.isRunning) return
             Thread.sleep(100)
         }
-
         if (!McpService.isRunning) {
             throw IllegalStateException("MCP server could not be started")
         }
     }
 
     private fun startTunnel(binary: File) {
+        val prefs = getSharedPreferences("droid_mcp", MODE_PRIVATE)
+        val tunnelId = prefs.getString("cloudflare_tunnel_id", "")?.trim().orEmpty()
+        val token = prefs.getString("cloudflare_tunnel_token", "")?.trim().orEmpty()
+        val hostname = prefs.getString(
+            "cloudflare_tunnel_hostname",
+            CloudflareTunnelConfig.DEFAULT_HOSTNAME
+        )?.trim().orEmpty()
+
+        if (tunnelId.isBlank()) {
+            throw IllegalStateException("Cloudflare Tunnel ID is required")
+        }
+        if (token.isBlank()) {
+            throw IllegalStateException(
+                "Cloudflare Tunnel token is required for an APK without cloudflared login"
+            )
+        }
+
         val home = File(filesDir, "cloudflared-home").apply { mkdirs() }
-        val started = ProcessBuilder(
+        val command = listOf(
             binary.absolutePath,
             "tunnel",
             "--no-autoupdate",
             "--protocol",
             "http2",
-            "--no-prechecks",
-            "--metrics",
-            "127.0.0.1:0",
-            "--loglevel",
-            "debug",
-            "--url",
-            CloudflareTunnelConfig.LOCAL_ORIGIN
-        ).redirectErrorStream(true).apply {
-            environment()["HOME"] = home.absolutePath
-            environment()["TMPDIR"] = cacheDir.absolutePath
-        }.start()
-        process = started
-        setState(true, null, null)
-
-        val pattern = Pattern.compile(
-            "https://[a-z0-9-]+\\.trycloudflare\\.com",
-            Pattern.CASE_INSENSITIVE
+            "run",
+            "--token",
+            token
         )
+
+        val started = ProcessBuilder(command)
+            .redirectErrorStream(true)
+            .apply {
+                environment()["HOME"] = home.absolutePath
+                environment()["TMPDIR"] = cacheDir.absolutePath
+            }
+            .start()
+
+        process = started
+        setState(true, "https://$hostname/mcp", null)
 
         BufferedReader(InputStreamReader(started.inputStream)).use { reader ->
             while (true) {
                 val line = reader.readLine() ?: break
                 Log.i("DroidMCP-cloudflared", line)
-                val match = pattern.matcher(line)
-                if (match.find()) {
-                    setState(true, match.group(), null)
-                }
             }
         }
 
@@ -96,7 +98,7 @@ class CloudflareTunnelService : Service() {
         process = null
 
         if (isRunning) {
-            setState(false, null, "cloudflared exited with code " + exitCode)
+            setState(false, null, "cloudflared exited with code $exitCode")
             stopSelf()
         }
     }
@@ -119,13 +121,9 @@ class CloudflareTunnelService : Service() {
             .setSmallIcon(android.R.drawable.stat_sys_upload)
             .build()
 
-    private fun setState(
-        running: Boolean,
-        url: String?,
-        error: String?
-    ) {
+    private fun setState(running: Boolean, url: String?, error: String?) {
         isRunning = running
-        quickUrl = url
+        tunnelUrl = url
         lastError = error
 
         getSharedPreferences("droid_mcp", MODE_PRIVATE)
@@ -140,8 +138,8 @@ class CloudflareTunnelService : Service() {
             notification(
                 when {
                     error != null -> error
-                    url != null -> "Quick Tunnel active"
-                    running -> "Starting Quick Tunnel"
+                    url != null -> "Named Tunnel active"
+                    running -> "Starting Named Tunnel"
                     else -> "Cloudflare Tunnel stopped"
                 }
             )
@@ -153,7 +151,6 @@ class CloudflareTunnelService : Service() {
             process?.destroy()
         } catch (_: Throwable) {
         }
-
         process = null
         isRunning = false
         executor.shutdownNow()
@@ -170,7 +167,7 @@ class CloudflareTunnelService : Service() {
         var isRunning: Boolean = false
 
         @Volatile
-        var quickUrl: String? = null
+        var tunnelUrl: String? = null
 
         @Volatile
         var lastError: String? = null
