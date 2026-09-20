@@ -474,28 +474,19 @@ class McpServer(
                 .append(status)
                 .append(' ')
                 .append(statusText(status))
-                .append("\r
-")
-            append("Connection: close\r
-")
+                .append("\r\n")
+            append("Connection: close\r\n")
             if (cors) {
-                append("Access-Control-Allow-Origin: null\r
-")
-                append("Access-Control-Allow-Methods: POST, OPTIONS\r
-")
-                append("Access-Control-Allow-Headers: Content-Type, MCP-Protocol-Version, Mcp-Method, Mcp-Name\r
-")
+                append("Access-Control-Allow-Origin: null\r\n")
+                append("Access-Control-Allow-Methods: POST, OPTIONS\r\n")
+                append("Access-Control-Allow-Headers: Content-Type, Authorization, MCP-Protocol-Version, Mcp-Method, Mcp-Name\r\n")
             }
             if (contentType != null) {
-                append("Content-Type: ").append(contentType).append("\r
-")
+                append("Content-Type: ").append(contentType).append("\r\n")
             }
-            append("Content-Length: ").append(bytes.size).append("\r
-")
-            append("X-Content-Type-Options: nosniff\r
-")
-            append("\r
-")
+            append("Content-Length: ").append(bytes.size).append("\r\n")
+            append("X-Content-Type-Options: nosniff\r\n")
+            append("\r\n")
         }.toByteArray(StandardCharsets.UTF_8)
 
         output.write(headers)
