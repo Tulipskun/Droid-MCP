@@ -506,7 +506,7 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
                     clip,
                     "com.android.shell",
                     null,
-                    android.os.UserHandle.myUserId(),
+                    currentUserId(),
                     0
                 )
                 4 -> setPrimaryClip.invoke(
@@ -540,6 +540,15 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
             )
         }
     }
+
+    private fun currentUserId(): Int =
+        try {
+            val method = android.os.UserHandle::class.java.getDeclaredMethod("myUserId")
+            method.isAccessible = true
+            method.invoke(null) as Int
+        } catch (_: Throwable) {
+            0
+        }
 
     private fun shellQuote(value: String): String =
         "'" + value.replace("'", "'\\''") + "'"
