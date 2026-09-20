@@ -57,7 +57,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: app/src/main/jniLibs
-          key: cloudflared-binaries-${{ steps.cloudflared.outputs.ref }}-ndk27.3-go1.26
+          key: cloudflared-binaries-${{ steps.cloudflared.outputs.ref }}-ndk27.3-go1.26-16k
 
       - name: Cache cloudflared source
         id: cloudflared-source
@@ -90,14 +90,17 @@ jobs:
           mkdir -p "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a" "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a" "$GITHUB_WORKSPACE/app/src/main/jniLibs/x86_64"
           export CGO_ENABLED=1 GOOS=android
           export GOARCH=arm64 CC="$TOOLCHAIN/bin/aarch64-linux-android21-clang"
-          go build -trimpath -o "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libcloudflared.so" ./cmd/cloudflared
+          go build -trimpath -ldflags="-linkmode=external -extldflags=-Wl,-z,max-page-size=16384" -o "$GITHUB_WORKSPACE/app/src/main/jniLibs/arm64-v8a/libcloudflared.so" ./cmd/cloudflared
           export GOARCH=arm GOARM=7 CC="$TOOLCHAIN/bin/armv7a-linux-androideabi21-clang"
-          go build -trimpath -o "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libcloudflared.so" ./cmd/cloudflared
+          go build -trimpath -ldflags="-linkmode=external -extldflags=-Wl,-z,max-page-size=16384" -o "$GITHUB_WORKSPACE/app/src/main/jniLibs/armeabi-v7a/libcloudflared.so" ./cmd/cloudflared
           export GOARCH=amd64 CC="$TOOLCHAIN/bin/x86_64-linux-android21-clang"
           unset GOARM
-          go build -trimpath -o "$GITHUB_WORKSPACE/app/src/main/jniLibs/x86_64/libcloudflared.so" ./cmd/cloudflared
+          go build -trimpath -ldflags="-linkmode=external -extldflags=-Wl,-z,max-page-size=16384" -o "$GITHUB_WORKSPACE/app/src/main/jniLibs/x86_64/libcloudflared.so" ./cmd/cloudflared
           file "$GITHUB_WORKSPACE"/app/src/main/jniLibs/*/libcloudflared.so
           chmod 755 "$GITHUB_WORKSPACE"/app/src/main/jniLibs/*/libcloudflared.so
+          for lib in "$GITHUB_WORKSPACE"/app/src/main/jniLibs/*/libcloudflared.so; do
+            readelf -lW "$lib" | awk '$1=="LOAD"{print $NF}' | grep -qx "0x4000"
+          done
 
       - name: Verify bundled cloudflared
         run: |
