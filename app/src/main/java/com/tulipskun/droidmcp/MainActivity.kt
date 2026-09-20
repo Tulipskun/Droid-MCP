@@ -208,18 +208,33 @@ class MainActivity : Activity() {
             Toast.makeText(this, "Cloudflare Tunnel URL is not configured", Toast.LENGTH_SHORT).show()
             return
         }
-        val endpoint = url.removeSuffix("/") + "/mcp"
+        val endpoint = normalizeMcpUrl(url)
+        if (endpoint.isBlank()) {
+            Toast.makeText(this, "Cloudflare Tunnel URL is not configured", Toast.LENGTH_SHORT).show()
+            return
+        }
         getSystemService(ClipboardManager::class.java)
             .setPrimaryClip(ClipData.newPlainText("Droid-MCP URL", endpoint))
         Toast.makeText(this, "MCP URL copied", Toast.LENGTH_SHORT).show()
     }
 
     private fun buildHostnameUrl(): String {
-        val hostname = tunnelHostname.text.toString().trim()
-            .removePrefix("https://")
-            .removePrefix("http://")
-            .trim('/')
-        return if (hostname.isBlank()) "" else "https://$hostname"
+        return normalizeMcpUrl(tunnelHostname.text.toString())
+    }
+
+    private fun normalizeMcpUrl(value: String): String {
+        var url = value.trim()
+        if (url.isBlank()) return ""
+        if (!url.startsWith("https://", ignoreCase = true) &&
+            !url.startsWith("http://", ignoreCase = true)
+        ) {
+            url = "https://$url"
+        }
+        url = url.trimEnd('/')
+        while (url.endsWith("/mcp", ignoreCase = true)) {
+            url = url.dropLast(4).trimEnd('/')
+        }
+        return if (url.isBlank()) "" else "$url/mcp"
     }
 
     private fun refreshTunnel() {
@@ -238,8 +253,8 @@ class MainActivity : Activity() {
             running -> "Starting Named Tunnel..."
             else -> "Stopped"
         }
-        val endpointUrl = url?.removeSuffix("/")?.plus("/mcp") ?: buildHostnameUrl().removeSuffix("/") + "/mcp"
-        tunnelEndpoint.text = if (endpointUrl == "/mcp") "Not configured" else endpointUrl
+        val endpointUrl = normalizeMcpUrl(url ?: tunnelHostname.text.toString())
+        tunnelEndpoint.text = if (endpointUrl.isBlank()) "Not configured" else endpointUrl
         tunnelToggle.text = if (CloudflareTunnelService.isRunning) {
             "Stop Cloudflare Tunnel"
         } else "Start Cloudflare Tunnel"
