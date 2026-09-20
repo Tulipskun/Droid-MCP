@@ -132,7 +132,7 @@ class McpServer(
             } catch (e: ProtocolException) {
                 writeResponse(
                     output,
-                    400,
+                    if (e.code == 401) 401 else 400,
                     "application/json",
                     error(
                         null,
@@ -497,7 +497,8 @@ class McpServer(
         200 -> "OK"
         202 -> "Accepted"
         204 -> "No Content"
-        400 -> "Bad Request"\n        401 -> "Unauthorized"
+        400 -> "Bad Request"
+        401 -> "Unauthorized"
         403 -> "Forbidden"
         404 -> "Not Found"
         405 -> "Method Not Allowed"
