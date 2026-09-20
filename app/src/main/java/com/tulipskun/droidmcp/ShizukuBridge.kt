@@ -471,7 +471,7 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
             return
         }
 
-        runCommand("cmd clipboard set text " + escaped)
+        runCommand("cmd clipboard set-primary-clip " + escaped)
         runCommand("input keyevent 279")
     }
 
