@@ -480,7 +480,7 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
         val service = SystemServiceHelper.getSystemService("clipboard")
             ?: throw IllegalStateException("Android clipboard service is unavailable")
 
-        val stubClass = Class.forName("android.content.IClipboard\\$Stub")
+        val stubClass = Class.forName("android.content.IClipboard\$Stub")
         val asInterface = stubClass.getDeclaredMethod(
             "asInterface",
             android.os.IBinder::class.java
@@ -514,13 +514,13 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
                     clip,
                     "com.android.shell",
                     null,
-                    android.os.UserHandle.myUserId()
+                    currentUserId()
                 )
                 3 -> setPrimaryClip.invoke(
                     clipboard,
                     clip,
                     "com.android.shell",
-                    android.os.UserHandle.myUserId()
+                    currentUserId()
                 )
                 2 -> setPrimaryClip.invoke(
                     clipboard,
