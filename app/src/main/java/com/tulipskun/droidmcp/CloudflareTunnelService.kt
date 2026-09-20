@@ -84,6 +84,7 @@ class CloudflareTunnelService : Service() {
             .apply {
                 environment()["HOME"] = home.absolutePath
                 environment()["TMPDIR"] = cacheDir.absolutePath
+                environment()["GODEBUG"] = "netdns=cgo"
             }
             .start()
 

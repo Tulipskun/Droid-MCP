@@ -250,7 +250,17 @@ class MainActivity : Activity() {
         uiHandler.postDelayed({ refreshMcp() }, 300)
     }
 
+    private fun saveTunnelSettings() {
+        preferences.edit()
+            .putString("cloudflare_tunnel_id", tunnelId.text.toString().trim())
+            .putString("cloudflare_tunnel_token", tunnelToken.text.toString().trim())
+            .putString("cloudflare_tunnel_hostname", tunnelHostname.text.toString().trim())
+            .putString("mcp_access_token", mcpAccessToken.text.toString().trim())
+            .apply()
+    }
+
     private fun toggleTunnel() {
+        saveTunnelSettings()
         if (!McpService.isRunning) {
             Toast.makeText(this, "Start MCP Server first", Toast.LENGTH_SHORT).show()
             return
