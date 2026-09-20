@@ -19,6 +19,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
+import com.google.android.material.materialswitch.MaterialSwitch
 import rikka.shizuku.Shizuku
 
 class MainActivity : Activity() {
@@ -36,6 +37,7 @@ class MainActivity : Activity() {
     private lateinit var keyboardEnable: Button
     private lateinit var keyboardSwitch: Button
     private lateinit var mainScroll: ScrollView
+    private lateinit var autoStart: MaterialSwitch
 
     private val preferences by lazy {
         getSharedPreferences("droid_mcp", MODE_PRIVATE)
@@ -58,6 +60,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         mainScroll = findViewById(R.id.main_scroll)
+        autoStart = findViewById(R.id.auto_start)
 
         shizukuStatus = findViewById(R.id.shizuku_status)
         mcpStatus = findViewById(R.id.mcp_status)
@@ -75,6 +78,14 @@ class MainActivity : Activity() {
         installKeyboardInsetsHandling()
 
         loadTunnelSettings()
+        autoStart.isChecked = preferences.getBoolean("auto_start", false)
+        autoStart.setOnCheckedChangeListener { _, checked ->
+            preferences.edit().putBoolean("auto_start", checked).apply()
+            if (checked) {
+                startMcpIfNeeded()
+                uiHandler.postDelayed({ startTunnelIfNeeded() }, 1200)
+            }
+        }
 
         Shizuku.addRequestPermissionResultListener(shizukuPermissionListener)
 
@@ -170,6 +181,10 @@ class MainActivity : Activity() {
         refreshMcp()
         refreshTunnel()
         uiHandler.post(tunnelPoll)
+        if (preferences.getBoolean("auto_start", false)) {
+            startMcpIfNeeded()
+            uiHandler.postDelayed({ startTunnelIfNeeded() }, 1200)
+        }
     }
 
     override fun onPause() {
@@ -207,6 +222,28 @@ class MainActivity : Activity() {
         } catch (error: Throwable) {
             shizukuStatus.text = error.message ?: "Shizuku unavailable"
         }
+    }
+
+    private fun startMcpIfNeeded() {
+        if (McpService.isRunning) return
+        val intent = Intent(this, McpService::class.java)
+        try {
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+        } catch (error: Throwable) {
+            mcpStatus.text = error.message ?: "Unable to start MCP Server"
+        }
+        uiHandler.postDelayed({ refreshMcp() }, 300)
+    }
+
+    private fun startTunnelIfNeeded() {
+        if (CloudflareTunnelService.isRunning || !McpService.isRunning) return
+        val intent = Intent(this, CloudflareTunnelService::class.java)
+        try {
+            if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
+        } catch (error: Throwable) {
+            tunnelStatus.text = error.message ?: "Unable to start Cloudflare Tunnel"
+        }
+        uiHandler.postDelayed({ refreshTunnel() }, 300)
     }
 
     private fun toggleMcp() {
