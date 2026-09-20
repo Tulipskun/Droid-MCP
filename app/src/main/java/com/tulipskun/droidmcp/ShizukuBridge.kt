@@ -6,8 +6,6 @@ import android.os.Parcel
 import android.os.SystemClock
 import android.view.InputDevice
 import android.view.MotionEvent
-import android.view.PointerCoords
-import android.view.PointerProperties
 import rikka.shizuku.ShizukuBinderWrapper
 import rikka.shizuku.SystemServiceHelper
 import org.json.JSONArray
@@ -352,14 +350,14 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
         positions: Array<IntArray>
     ): MotionEvent {
         val properties = Array(pointerIds.size) {
-            PointerProperties().apply {
+            MotionEvent.PointerProperties().apply {
                 id = pointerIds[it]
                 toolType = MotionEvent.TOOL_TYPE_FINGER
             }
         }
 
         val coords = Array(pointerIds.size) {
-            PointerCoords().apply {
+            MotionEvent.PointerCoords().apply {
                 x = positions[it][0].toFloat()
                 y = positions[it][1].toFloat()
                 pressure = 1f
@@ -397,7 +395,7 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
 
             val transactionCode =
                 SystemServiceHelper.getTransactionCode(
-                    "android.hardware.input.IInputManager$Stub",
+                    "android.hardware.input.IInputManager\$Stub",
                     "injectInputEvent"
                 ) ?: throw IllegalStateException(
                     "IInputManager.injectInputEvent transaction not found"
@@ -472,6 +470,7 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
     )
 
     companion object {
+        private const val INJECT_INPUT_EVENT_MODE_WAIT_FOR_RESULT = 1
         private const val COMMAND_TIMEOUT_SECONDS = 15L
         private const val COMMAND_STREAM_JOIN_MILLIS = 1000L
     }
