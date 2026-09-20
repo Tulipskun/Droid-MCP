@@ -2,6 +2,8 @@ package com.tulipskun.droidmcp
 
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Parcel
 import android.os.SystemClock
 import android.view.InputDevice
@@ -476,7 +478,35 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
     }
 
     fun screenshot(): ByteArray {
-        return runCommand("screencap -p").stdout
+        val png = runCommand("screencap -p").stdout
+        val source = BitmapFactory.decodeByteArray(png, 0, png.size)
+            ?: throw IllegalStateException("Unable to decode screenshot")
+
+        if (source.width <= MAX_SCREENSHOT_EDGE &&
+            source.height <= MAX_SCREENSHOT_EDGE
+        ) {
+            return png
+        }
+
+        val scale = MAX_SCREENSHOT_EDGE.toFloat() /
+            maxOf(source.width, source.height)
+        val width = (source.width * scale).toInt().coerceAtLeast(1)
+        val height = (source.height * scale).toInt().coerceAtLeast(1)
+        val resized = Bitmap.createScaledBitmap(source, width, height, true)
+
+        return try {
+            ByteArrayOutputStream().use { output ->
+                if (!resized.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                    throw IllegalStateException("Unable to encode resized screenshot")
+                }
+                output.toByteArray()
+            }
+        } finally {
+            if (resized !== source) {
+                resized.recycle()
+            }
+            source.recycle()
+        }
     }
 
     fun close() {
@@ -488,6 +518,7 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
     )
 
     companion object {
+        private const val MAX_SCREENSHOT_EDGE = 1500
         private const val INJECT_INPUT_EVENT_MODE_WAIT_FOR_RESULT = 1
         private const val COMMAND_TIMEOUT_SECONDS = 15L
         private const val COMMAND_STREAM_JOIN_MILLIS = 1000L
