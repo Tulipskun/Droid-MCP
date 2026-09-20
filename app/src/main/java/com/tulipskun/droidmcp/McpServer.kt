@@ -255,15 +255,15 @@ class McpServer(
         return try {
             when (name) {
                 "tap" -> toolWithScreenshot("tap completed") {
-                    executor.tap(args.getInt("x"), args.getInt("y"))
+                    executor.tap(args.getString("x"), args.getString("y"))
                 }
 
                 "swipe" -> toolWithScreenshot("swipe completed") {
                     executor.swipe(
-                        args.getInt("x1"),
-                        args.getInt("y1"),
-                        args.getInt("x2"),
-                        args.getInt("y2"),
+                        args.getString("x1"),
+                        args.getString("y1"),
+                        args.getString("x2"),
+                        args.getString("y2"),
                         args.getLong("duration_ms")
                     )
                 }
