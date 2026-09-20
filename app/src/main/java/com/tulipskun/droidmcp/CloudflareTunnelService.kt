@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.os.IBinder
+import android.util.Log
 import java.io.BufferedReader
 import java.io.File
 import java.io.InputStreamReader
@@ -81,6 +82,7 @@ class CloudflareTunnelService : Service() {
         BufferedReader(InputStreamReader(started.inputStream)).use { reader ->
             while (true) {
                 val line = reader.readLine() ?: break
+                Log.i("DroidMCP-cloudflared", line)
                 val match = pattern.matcher(line)
                 if (match.find()) {
                     setState(true, match.group(), null)
