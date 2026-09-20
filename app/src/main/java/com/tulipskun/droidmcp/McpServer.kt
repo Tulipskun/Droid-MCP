@@ -279,6 +279,10 @@ class McpServer(
                     executor.tap(args.getString("x"), args.getString("y"))
                 }
 
+                "long_press" -> toolWithScreenshot("long_press completed") {
+                    executor.longPress(args.getString("x"), args.getString("y"), args.getLong("duration_ms"))
+                }
+
                 "swipe" -> toolWithScreenshot("swipe completed") {
                     executor.swipe(
                         args.getString("x1"),
