@@ -77,6 +77,8 @@ class CloudflareTunnelService : Service() {
             "--metrics",
             "127.0.0.1:20241",
             "run",
+            "--dns-resolver-addrs",
+            "1.1.1.1:53",
             "--token",
             token
         )
