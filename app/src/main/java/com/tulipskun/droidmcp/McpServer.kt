@@ -171,7 +171,7 @@ class McpServer(
 
     private fun validateProtocolHeader(headers: Map<String, String>) {
         val headerProtocol = headers["mcp-protocol-version"]
-        if (headerProtocol != PROTOCOL_VERSION) {
+        if (headerProtocol !in SUPPORTED_PROTOCOL_VERSIONS) {
             throw ProtocolException(
                 "Unsupported MCP protocol version: ${headerProtocol ?: "missing"}",
                 UNSUPPORTED_PROTOCOL_VERSION,
