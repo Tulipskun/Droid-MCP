@@ -162,7 +162,7 @@ class CloudflareTunnelService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     companion object {
-        private const val CHANNEL_ID = "cloudflare_tunnel"
+        private const val CHANNEL_ID = "droid_mcp_cloudflare"
         private const val NOTIFICATION_ID = 8788
         private const val MAX_OUTPUT_LINES = 12
         private const val MAX_ERROR_CHARS = 700
