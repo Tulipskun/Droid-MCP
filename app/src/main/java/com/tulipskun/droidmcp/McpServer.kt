@@ -281,7 +281,18 @@ class McpServer(
                 }
 
                 "key_event" -> toolWithScreenshot("key_event completed") {
-                    executor.keyEvent(args.getInt("keycode"))
+                    val keycodes = if (args.has("keycodes")) {
+                        val array = args.getJSONArray("keycodes")
+                        require(array.length() > 0) { "keycodes must not be empty" }
+                        IntArray(array.length()) { array.getInt(it) }
+                    } else {
+                        intArrayOf(args.getInt("keycode"))
+                    }
+
+                    executor.keyChord(
+                        keycodes,
+                        args.optLong("hold_ms", 0L)
+                    )
                 }
 
                 "input_text" -> toolWithScreenshot("input_text completed") {
