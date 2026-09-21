@@ -427,7 +427,7 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
             val service = SystemServiceHelper.getSystemService("input")
                 ?: throw IllegalStateException("Android input service is unavailable")
 
-            val stubClass = Class.forName("android.hardware.input.IInputManager\\$Stub")
+            val stubClass = Class.forName("android.hardware.input.IInputManager\$Stub")
             val asInterface = stubClass.getDeclaredMethod(
                 "asInterface",
                 android.os.IBinder::class.java
@@ -462,8 +462,6 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
                     (cause.message ?: cause.javaClass.name),
                 cause
             )
-        } finally {
-            event.recycle()
         }
     }
 
