@@ -20,7 +20,12 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import com.google.android.material.materialswitch.MaterialSwitch
+import org.json.JSONObject
 import rikka.shizuku.Shizuku
+import java.net.HttpURLConnection
+import java.net.URL
+import java.nio.charset.StandardCharsets
+import java.util.concurrent.Executors
 
 class MainActivity : Activity() {
     private lateinit var shizukuStatus: TextView
@@ -36,16 +41,27 @@ class MainActivity : Activity() {
     private lateinit var keyboardSwitch: Button
     private lateinit var mainScroll: ScrollView
     private lateinit var autoStart: MaterialSwitch
+    private lateinit var webhookUrl: EditText
+    private lateinit var webhookStatus: TextView
+    private lateinit var sendWebhook: Button
+    private lateinit var copyCurl: Button
+
+    private var mcpActionPending = false
+    private var tunnelActionPending = false
+    private var mcpDesiredRunning = false
+    private var tunnelDesiredRunning = false
+    private val networkExecutor = Executors.newSingleThreadExecutor()
 
     private val preferences by lazy {
         getSharedPreferences("droid_mcp", MODE_PRIVATE)
     }
 
     private val uiHandler = Handler(Looper.getMainLooper())
-    private val tunnelPoll = object : Runnable {
+    private val servicePoll = object : Runnable {
         override fun run() {
+            refreshMcp()
             refreshTunnel()
-            uiHandler.postDelayed(this, 500)
+            uiHandler.postDelayed(this, 250)
         }
     }
 
@@ -71,9 +87,20 @@ class MainActivity : Activity() {
         shizukuConnect = findViewById(R.id.connect_shizuku)
         keyboardEnable = findViewById(R.id.enable_keyboard)
         keyboardSwitch = findViewById(R.id.switch_keyboard)
+        webhookUrl = findViewById(R.id.webhook_url)
+        webhookStatus = findViewById(R.id.webhook_status)
+        sendWebhook = findViewById(R.id.send_webhook)
+        copyCurl = findViewById(R.id.copy_curl)
         installKeyboardInsetsHandling()
 
-        loadTunnelSettings()
+        webhookUrl.setText(preferences.getString("webhook_url", ""))
+        updateWebhookButtons()
+        webhookUrl.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) saveWebhookUrl()
+        }
+        sendWebhook.setOnClickListener { sendMcpUrlToWebhook() }
+        copyCurl.setOnClickListener { copyCurlCommand() }
+
         autoStart.isChecked = preferences.getBoolean("auto_start", false)
         autoStart.setOnCheckedChangeListener { _, checked ->
             preferences.edit().putBoolean("auto_start", checked).apply()
@@ -112,29 +139,12 @@ class MainActivity : Activity() {
         mainScroll.setOnApplyWindowInsetsListener { view, insets ->
             val systemBottom = if (Build.VERSION.SDK_INT >= 30) {
                 insets.getInsets(WindowInsets.Type.systemBars()).bottom
-            } else {
-                0
-            }
+            } else 0
             val imeBottom = if (Build.VERSION.SDK_INT >= 30) {
                 insets.getInsets(WindowInsets.Type.ime()).bottom
-            } else {
-                0
-            }
-            view.setPadding(
-                view.paddingLeft,
-                view.paddingTop,
-                view.paddingRight,
-                baseBottomPadding + maxOf(systemBottom, imeBottom)
-            )
+            } else 0
+            view.setPadding(view.paddingLeft, view.paddingTop, view.paddingRight, baseBottomPadding + maxOf(systemBottom, imeBottom))
             insets
-        }
-
-        val focusListener = View.OnFocusChangeListener { view, hasFocus ->
-            if (hasFocus) {
-                view.postDelayed({
-                    mainScroll.smoothScrollTo(0, view.bottom.coerceAtLeast(0))
-                }, 180)
-            }
         }
         mainScroll.viewTreeObserver.addOnGlobalLayoutListener {
             if (currentFocus is EditText) {
@@ -144,19 +154,92 @@ class MainActivity : Activity() {
                     focused.getDrawingRect(rect)
                     mainScroll.offsetDescendantRectToMyCoords(focused, rect)
                     val visibleBottom = mainScroll.height - mainScroll.paddingBottom
-                    if (rect.bottom > visibleBottom) {
-                        mainScroll.smoothScrollBy(0, rect.bottom - visibleBottom + 32)
-                    }
+                    if (rect.bottom > visibleBottom) mainScroll.smoothScrollBy(0, rect.bottom - visibleBottom + 32)
                 }
             }
         }
         mainScroll.requestApplyInsets()
     }
 
-    private fun loadTunnelSettings() {
+    private fun saveWebhookUrl(): String {
+        val value = webhookUrl.text.toString().trim()
+        preferences.edit().putString("webhook_url", value).apply()
+        return value
     }
 
+    private fun updateWebhookButtons() {
+        val configured = webhookUrl.text.toString().trim().isNotBlank()
+        val hasMcpUrl = normalizeMcpUrl(CloudflareTunnelService.tunnelUrl ?: preferences.getString("tunnel_url", "") ?: "").isNotBlank()
+        sendWebhook.isEnabled = configured && hasMcpUrl
+        copyCurl.isEnabled = configured && hasMcpUrl
+    }
+
+    private fun sendMcpUrlToWebhook() {
+        val webhook = saveWebhookUrl()
+        val mcpUrl = normalizeMcpUrl(CloudflareTunnelService.tunnelUrl ?: preferences.getString("tunnel_url", "") ?: "")
+        if (!webhook.startsWith("https://", ignoreCase = true)) {
+            webhookStatus.text = "Webhook must use HTTPS"
+            updateWebhookButtons()
+            return
+        }
+        if (mcpUrl.isBlank()) {
+            webhookStatus.text = "Start Cloudflare Tunnel first"
+            updateWebhookButtons()
+            return
+        }
+
+        sendWebhook.isEnabled = false
+        copyCurl.isEnabled = false
+        webhookStatus.text = "Sending MCP URL..."
+        val payload = JSONObject().put("url", mcpUrl).toString()
+        networkExecutor.execute {
+            var connection: HttpURLConnection? = null
+            try {
+                connection = URL(webhook).openConnection() as HttpURLConnection
+                connection.requestMethod = "POST"
+                connection.connectTimeout = 10000
+                connection.readTimeout = 15000
+                connection.doOutput = true
+                connection.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+                connection.setRequestProperty("Accept", "application/json, text/plain, */*")
+                connection.outputStream.use { it.write(payload.toByteArray(StandardCharsets.UTF_8)) }
+                val code = connection.responseCode
+                val text = if (code in 200..299) "Webhook sent (HTTP $code)" else "Webhook failed (HTTP $code)"
+                uiHandler.post {
+                    webhookStatus.text = text
+                    updateWebhookButtons()
+                }
+            } catch (error: Throwable) {
+                uiHandler.post {
+                    webhookStatus.text = "Webhook failed: ${error.message ?: "network error"}"
+                    updateWebhookButtons()
+                }
+            } finally {
+                connection?.disconnect()
+            }
+        }
+    }
+
+    private fun copyCurlCommand() {
+        val webhook = saveWebhookUrl()
+        val mcpUrl = normalizeMcpUrl(CloudflareTunnelService.tunnelUrl ?: preferences.getString("tunnel_url", "") ?: "")
+        if (webhook.isBlank() || mcpUrl.isBlank()) {
+            webhookStatus.text = "Webhook and MCP URL are required"
+            updateWebhookButtons()
+            return
+        }
+        val payload = JSONObject().put("url", mcpUrl).toString()
+        val command = "curl -X POST ${shellQuote(webhook)} -H ${shellQuote("Content-Type: application/json")} --data ${shellQuote(payload)}"
+        getSystemService(ClipboardManager::class.java)
+            .setPrimaryClip(ClipData.newPlainText("Droid-MCP cURL", command))
+        webhookStatus.text = "cURL command copied"
+    }
+
+    private fun shellQuote(value: String): String = "'" + value.replace("'", "'\\''") + "'"
+
     override fun onDestroy() {
+        uiHandler.removeCallbacks(servicePoll)
+        networkExecutor.shutdownNow()
         Shizuku.removeRequestPermissionResultListener(shizukuPermissionListener)
         super.onDestroy()
     }
@@ -166,11 +249,11 @@ class MainActivity : Activity() {
         refreshShizuku()
         refreshMcp()
         refreshTunnel()
-        uiHandler.post(tunnelPoll)
+        uiHandler.post(servicePoll)
     }
 
     override fun onPause() {
-        uiHandler.removeCallbacks(tunnelPoll)
+        uiHandler.removeCallbacks(servicePoll)
         super.onPause()
     }
 
@@ -208,70 +291,92 @@ class MainActivity : Activity() {
 
     private fun startMcpIfNeeded() {
         if (McpService.isRunning) return
+        mcpDesiredRunning = true
+        mcpActionPending = true
+        refreshMcp()
         val intent = Intent(this, McpService::class.java)
         try {
             if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
         } catch (error: Throwable) {
+            mcpActionPending = false
+            mcpDesiredRunning = false
             mcpStatus.text = error.message ?: "Unable to start MCP Server"
         }
-        uiHandler.postDelayed({ refreshMcp() }, 300)
     }
 
     private fun startTunnelIfNeeded() {
         if (CloudflareTunnelService.isRunning || !McpService.isRunning) return
+        tunnelDesiredRunning = true
+        tunnelActionPending = true
+        refreshTunnel()
         val intent = Intent(this, CloudflareTunnelService::class.java)
         try {
             if (Build.VERSION.SDK_INT >= 26) startForegroundService(intent) else startService(intent)
         } catch (error: Throwable) {
+            tunnelActionPending = false
+            tunnelDesiredRunning = false
             tunnelStatus.text = error.message ?: "Unable to start Cloudflare Tunnel"
         }
-        uiHandler.postDelayed({ refreshTunnel() }, 300)
     }
 
     private fun toggleMcp() {
+        if (mcpActionPending) return
         val intent = Intent(this, McpService::class.java)
         if (McpService.isRunning) {
-            stopService(intent)
-        } else if (Build.VERSION.SDK_INT >= 26) {
-            startForegroundService(intent)
+            if (CloudflareTunnelService.isRunning) {
+                tunnelDesiredRunning = false
+                tunnelActionPending = true
+                stopService(Intent(this, CloudflareTunnelService::class.java))
+            }
+            mcpDesiredRunning = false
+            mcpActionPending = true
+            refreshMcp()
+            uiHandler.postDelayed({ stopService(intent) }, 250)
         } else {
-            startService(intent)
+            startMcpIfNeeded()
         }
-        uiHandler.postDelayed({ refreshMcp() }, 300)
     }
 
     private fun toggleTunnel() {
+        if (tunnelActionPending) return
         if (!McpService.isRunning) {
             Toast.makeText(this, "Start MCP Server first", Toast.LENGTH_SHORT).show()
             return
         }
         val intent = Intent(this, CloudflareTunnelService::class.java)
         if (CloudflareTunnelService.isRunning) {
+            tunnelDesiredRunning = false
+            tunnelActionPending = true
+            refreshTunnel()
             stopService(intent)
-        } else if (Build.VERSION.SDK_INT >= 26) {
-            startForegroundService(intent)
         } else {
-            startService(intent)
+            startTunnelIfNeeded()
         }
-        uiHandler.postDelayed({ refreshTunnel() }, 300)
     }
 
     private fun refreshMcp() {
-        mcpStatus.text = if (McpService.isRunning) {
-            "Running on 0.0.0.0:" + CloudflareTunnelConfig.LOCAL_PORT
-        } else "Stopped"
+        val running = McpService.isRunning
+        if (mcpActionPending) {
+            if (running == mcpDesiredRunning) mcpActionPending = false
+        }
+        mcpStatus.text = when {
+            mcpActionPending && mcpDesiredRunning -> "Starting MCP Server..."
+            mcpActionPending && !mcpDesiredRunning -> "Stopping MCP Server..."
+            running -> "Running on 0.0.0.0:" + CloudflareTunnelConfig.LOCAL_PORT
+            else -> "Stopped"
+        }
         endpoint.text = "http://<ANDROID_IP>:" + CloudflareTunnelConfig.LOCAL_PORT + "/mcp"
-        mcpToggle.text = if (McpService.isRunning) "Stop MCP Server" else "Start MCP Server"
+        mcpToggle.text = when {
+            mcpActionPending && mcpDesiredRunning -> "Starting..."
+            mcpActionPending -> "Stopping..."
+            running -> "Stop MCP Server"
+            else -> "Start MCP Server"
+        }
+        mcpToggle.isEnabled = !mcpActionPending
     }
 
     private fun copyTunnelUrl() {
-        val url = CloudflareTunnelService.tunnelUrl
-            ?: preferences.getString("tunnel_url", null)
-            ?: ""
-        if (url.isBlank()) {
-            Toast.makeText(this, "Cloudflare Tunnel URL is not configured", Toast.LENGTH_SHORT).show()
-            return
-        }
+        val url = CloudflareTunnelService.tunnelUrl ?: preferences.getString("tunnel_url", null) ?: ""
         val endpoint = normalizeMcpUrl(url)
         if (endpoint.isBlank()) {
             Toast.makeText(this, "Cloudflare Tunnel URL is not configured", Toast.LENGTH_SHORT).show()
@@ -285,39 +390,40 @@ class MainActivity : Activity() {
     private fun normalizeMcpUrl(value: String): String {
         var url = value.trim()
         if (url.isBlank()) return ""
-        if (!url.startsWith("https://", ignoreCase = true) &&
-            !url.startsWith("http://", ignoreCase = true)
-        ) {
+        if (!url.startsWith("https://", ignoreCase = true) && !url.startsWith("http://", ignoreCase = true)) {
             url = "https://$url"
         }
         url = url.trimEnd('/')
-        while (url.endsWith("/mcp", ignoreCase = true)) {
-            url = url.dropLast(4).trimEnd('/')
-        }
+        while (url.endsWith("/mcp", ignoreCase = true)) url = url.dropLast(4).trimEnd('/')
         return if (url.isBlank()) "" else "$url/mcp"
     }
 
     private fun refreshTunnel() {
-        val storedRunning = preferences.getBoolean("tunnel_running", false)
         val storedUrl = preferences.getString("tunnel_url", null)
         val storedError = preferences.getString("tunnel_error", null)
-        val running = CloudflareTunnelService.isRunning || storedRunning
-        val url = CloudflareTunnelService.tunnelUrl ?: storedUrl
-        val error = CloudflareTunnelService.lastError ?: storedError
+        val running = CloudflareTunnelService.isRunning
+        val url = CloudflareTunnelService.tunnelUrl ?: if (running) storedUrl else null
+        val error = CloudflareTunnelService.lastError ?: if (running) storedError else null
 
+        if (tunnelActionPending && running == tunnelDesiredRunning) tunnelActionPending = false
         tunnelStatus.text = when {
+            tunnelActionPending && tunnelDesiredRunning -> "Starting Quick Tunnel..."
+            tunnelActionPending -> "Stopping Quick Tunnel..."
             error != null -> error
             url != null -> "Quick Tunnel active"
-            running -> "Starting Quick Tunnel..."
             else -> "Stopped"
         }
         val endpointUrl = normalizeMcpUrl(url ?: "")
         tunnelEndpoint.text = if (endpointUrl.isBlank()) "Not configured" else endpointUrl
-        tunnelToggle.text = if (CloudflareTunnelService.isRunning) {
-            "Stop Cloudflare Tunnel"
-        } else "Start Cloudflare Tunnel"
-        tunnelToggle.isEnabled = McpService.isRunning || CloudflareTunnelService.isRunning
-        copyTunnelUrl.isEnabled = endpointUrl.isNotBlank()
+        tunnelToggle.text = when {
+            tunnelActionPending && tunnelDesiredRunning -> "Starting..."
+            tunnelActionPending -> "Stopping..."
+            running -> "Stop Cloudflare Tunnel"
+            else -> "Start Cloudflare Tunnel"
+        }
+        tunnelToggle.isEnabled = !tunnelActionPending && (McpService.isRunning || running)
+        copyTunnelUrl.isEnabled = !tunnelActionPending && endpointUrl.isNotBlank()
+        updateWebhookButtons()
     }
 
     companion object {
