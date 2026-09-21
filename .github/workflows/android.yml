@@ -133,13 +133,13 @@ jobs:
           import os, re
           p = Path("app/build.gradle.kts")
           s = p.read_text()
-          s = re.sub(r'versionCode = \\d+', 'versionCode = ' + os.environ["VERSION_CODE"], s)
+          s = re.sub(r'versionCode = \d+', 'versionCode = ' + os.environ["VERSION_CODE"], s)
           s = re.sub(r'versionName = "[^"]+"', 'versionName = "' + os.environ["VERSION_NAME"] + '"', s)
           p.write_text(s)
           PY
 
       - name: Build
-        run: gradle assembleDebug
+        run: gradle clean assembleDebug
 
       - name: Verify APK 16 KB alignment
         run: |
