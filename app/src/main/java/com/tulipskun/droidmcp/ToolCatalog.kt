@@ -32,9 +32,11 @@ object ToolCatalog {
             "pointers" to pointerArray(),
             required = listOf("pointers")
         )))
-        put(tool("key_event", "Send an Android key event.", schema(
-            "keycode" to integer("Android keycode"),
-            required = listOf("keycode")
+        put(tool("key_event", "Press, hold, or press multiple Android keys simultaneously. Use keycodes for chords such as Ctrl+A.", schema(
+            "keycode" to integer("single Android keycode; backwards-compatible with the old form"),
+            "keycodes" to integerArray("Android keycodes pressed together in order, e.g. [113, 29] for Ctrl+A"),
+            "hold_ms" to integer("how long to hold the keys in milliseconds, default 0"),
+            required = emptyList()
         )))
         put(tool("input_text", "Type text into the focused field.", schema(
             "text" to JSONObject().put("type", "string"),
@@ -78,6 +80,13 @@ object ToolCatalog {
 
     private fun integer(description: String): JSONObject =
         JSONObject().put("type", "integer").put("description", description)
+
+    private fun integerArray(description: String): JSONObject =
+        JSONObject()
+            .put("type", "array")
+            .put("items", JSONObject().put("type", "integer"))
+            .put("minItems", 1)
+            .put("description", description)
     private fun percentage(description: String): JSONObject =
         JSONObject()
             .put("type", "string")
