@@ -20,6 +20,7 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.progressindicator.LinearProgressIndicator
 import org.json.JSONObject
 import rikka.shizuku.Shizuku
 import java.net.HttpURLConnection
@@ -30,8 +31,10 @@ import java.util.concurrent.Executors
 class MainActivity : Activity() {
     private lateinit var shizukuStatus: TextView
     private lateinit var mcpStatus: TextView
+    private lateinit var mcpProgress: LinearProgressIndicator
     private lateinit var endpoint: TextView
     private lateinit var tunnelStatus: TextView
+    private lateinit var tunnelProgress: LinearProgressIndicator
     private lateinit var tunnelEndpoint: TextView
     private lateinit var copyTunnelUrl: Button
     private lateinit var tunnelToggle: Button
@@ -78,8 +81,10 @@ class MainActivity : Activity() {
 
         shizukuStatus = findViewById(R.id.shizuku_status)
         mcpStatus = findViewById(R.id.mcp_status)
+        mcpProgress = findViewById(R.id.mcp_progress)
         endpoint = findViewById(R.id.endpoint)
         tunnelStatus = findViewById(R.id.tunnel_status)
+        tunnelProgress = findViewById(R.id.tunnel_progress)
         tunnelEndpoint = findViewById(R.id.tunnel_endpoint)
         copyTunnelUrl = findViewById(R.id.copy_tunnel_url)
         tunnelToggle = findViewById(R.id.tunnel_toggle)
@@ -354,17 +359,30 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun animateStatus(view: View, active: Boolean) {
+        view.animate().cancel()
+        if (active) {
+            view.alpha = 0.55f
+            view.animate().alpha(1f).setDuration(420).start()
+        } else {
+            view.alpha = 1f
+        }
+    }
+
     private fun refreshMcp() {
         val running = McpService.isRunning
         if (mcpActionPending) {
             if (running == mcpDesiredRunning) mcpActionPending = false
         }
+        val mcpPending = mcpActionPending
         mcpStatus.text = when {
-            mcpActionPending && mcpDesiredRunning -> "Starting MCP Server..."
-            mcpActionPending && !mcpDesiredRunning -> "Stopping MCP Server..."
+            mcpPending && mcpDesiredRunning -> "Starting MCP Server..."
+            mcpPending && !mcpDesiredRunning -> "Stopping MCP Server..."
             running -> "Running on 0.0.0.0:" + CloudflareTunnelConfig.LOCAL_PORT
             else -> "Stopped"
         }
+        mcpProgress.visibility = if (mcpPending) View.VISIBLE else View.GONE
+        if (mcpPending) animateStatus(mcpStatus, true)
         endpoint.text = "http://<ANDROID_IP>:" + CloudflareTunnelConfig.LOCAL_PORT + "/mcp"
         mcpToggle.text = when {
             mcpActionPending && mcpDesiredRunning -> "Starting..."
@@ -406,13 +424,16 @@ class MainActivity : Activity() {
         val error = CloudflareTunnelService.lastError ?: if (running) storedError else null
 
         if (tunnelActionPending && running == tunnelDesiredRunning) tunnelActionPending = false
+        val tunnelPending = tunnelActionPending
         tunnelStatus.text = when {
-            tunnelActionPending && tunnelDesiredRunning -> "Starting Quick Tunnel..."
-            tunnelActionPending -> "Stopping Quick Tunnel..."
+            tunnelPending && tunnelDesiredRunning -> "Starting Quick Tunnel..."
+            tunnelPending -> "Stopping Quick Tunnel..."
             error != null -> error
             url != null -> "Quick Tunnel active"
             else -> "Stopped"
         }
+        tunnelProgress.visibility = if (tunnelPending) View.VISIBLE else View.GONE
+        if (tunnelPending) animateStatus(tunnelStatus, true)
         val endpointUrl = normalizeMcpUrl(url ?: "")
         tunnelEndpoint.text = if (endpointUrl.isBlank()) "Not configured" else endpointUrl
         tunnelToggle.text = when {
