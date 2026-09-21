@@ -154,6 +154,14 @@
                     android:text="Stopped"
                     android:textAppearance="?attr/textAppearanceBodyLarge"
                     android:textColor="?attr/colorOnSurface" />
+                <com.google.android.material.progressindicator.LinearProgressIndicator
+                    android:id="@+id/mcp_progress"
+                    android:layout_width="match_parent"
+                    android:layout_height="4dp"
+                    android:layout_marginTop="10dp"
+                    android:visibility="gone"
+                    android:indeterminate="true"
+                    app:trackCornerRadius="2dp" />
                 <TextView
                     android:id="@+id/endpoint"
                     android:layout_width="match_parent"
@@ -206,6 +214,14 @@
                     android:text="Stopped"
                     android:textAppearance="?attr/textAppearanceBodyLarge"
                     android:textColor="?attr/colorOnSurface" />
+                <com.google.android.material.progressindicator.LinearProgressIndicator
+                    android:id="@+id/tunnel_progress"
+                    android:layout_width="match_parent"
+                    android:layout_height="4dp"
+                    android:layout_marginTop="10dp"
+                    android:visibility="gone"
+                    android:indeterminate="true"
+                    app:trackCornerRadius="2dp" />
                 <TextView
                     android:id="@+id/tunnel_endpoint"
                     android:layout_width="match_parent"
