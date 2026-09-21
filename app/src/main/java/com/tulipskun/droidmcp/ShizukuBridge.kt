@@ -422,6 +422,51 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
         )
     }
 
+    private fun injectKeyEvent(event: KeyEvent) {
+        try {
+            val service = SystemServiceHelper.getSystemService("input")
+                ?: throw IllegalStateException("Android input service is unavailable")
+
+            val stubClass = Class.forName("android.hardware.input.IInputManager\\$Stub")
+            val asInterface = stubClass.getDeclaredMethod(
+                "asInterface",
+                android.os.IBinder::class.java
+            )
+            asInterface.isAccessible = true
+
+            val inputManager = asInterface.invoke(
+                null,
+                ShizukuBinderWrapper(service)
+            ) ?: throw IllegalStateException("Unable to create IInputManager proxy")
+
+            val inject = inputManager.javaClass.getMethod(
+                "injectInputEvent",
+                android.view.InputEvent::class.java,
+                Int::class.javaPrimitiveType
+            )
+            inject.isAccessible = true
+
+            val result = inject.invoke(
+                inputManager,
+                event,
+                INJECT_INPUT_EVENT_MODE_WAIT_FOR_RESULT
+            ) as? Boolean ?: false
+
+            if (!result) {
+                throw IllegalStateException("Android rejected key event injection")
+            }
+        } catch (error: Throwable) {
+            val cause = error.cause ?: error
+            throw IllegalStateException(
+                "IInputManager.injectInputEvent(key) failed: " +
+                    (cause.message ?: cause.javaClass.name),
+                cause
+            )
+        } finally {
+            event.recycle()
+        }
+    }
+
     private fun injectMotionEvent(event: MotionEvent) {
         try {
             val service = SystemServiceHelper.getSystemService("input")
