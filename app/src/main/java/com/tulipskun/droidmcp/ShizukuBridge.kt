@@ -8,6 +8,7 @@ import android.graphics.BitmapFactory
 import android.os.Parcel
 import android.os.SystemClock
 import android.view.InputDevice
+import android.view.KeyEvent
 import android.view.MotionEvent
 import rikka.shizuku.ShizukuBinderWrapper
 import rikka.shizuku.SystemServiceHelper
@@ -475,9 +476,62 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
     }
 
     fun keyEvent(keycode: Int) {
-        runCommand(
-            "input keyevent " + keycode
-        )
+        keyChord(intArrayOf(keycode), 0L)
+    }
+
+    fun keyChord(keycodes: IntArray, holdMs: Long) {
+        require(keycodes.isNotEmpty()) {
+            "keycodes must not be empty"
+        }
+        require(holdMs >= 0) {
+            "hold_ms must be >= 0"
+        }
+
+        synchronized(lock) {
+            ensureReady()
+
+            val downTime = SystemClock.uptimeMillis()
+
+            for (keycode in keycodes) {
+                injectKeyEvent(
+                    KeyEvent(
+                        downTime,
+                        SystemClock.uptimeMillis(),
+                        KeyEvent.ACTION_DOWN,
+                        keycode,
+                        0,
+                        0,
+                        KeyEvent.KEYCODE_UNKNOWN,
+                        0,
+                        KeyEvent.FLAG_FROM_SYSTEM,
+                        InputDevice.SOURCE_KEYBOARD
+                    )
+                )
+            }
+
+            try {
+                if (holdMs > 0) {
+                    Thread.sleep(holdMs)
+                }
+            } finally {
+                for (index in keycodes.indices.reversed()) {
+                    injectKeyEvent(
+                        KeyEvent(
+                            downTime,
+                            SystemClock.uptimeMillis(),
+                            KeyEvent.ACTION_UP,
+                            keycodes[index],
+                            0,
+                            0,
+                            KeyEvent.KEYCODE_UNKNOWN,
+                            0,
+                            KeyEvent.FLAG_FROM_SYSTEM,
+                            InputDevice.SOURCE_KEYBOARD
+                        )
+                    )
+                }
+            }
+        }
     }
 
     fun inputText(text: String) {
