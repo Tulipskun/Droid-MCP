@@ -534,20 +534,16 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
             ensureReady()
 
             val downTime = SystemClock.uptimeMillis()
+            var metaState = 0
 
             for (keycode in keycodes) {
+                metaState = metaState or modifierMetaForKey(keycode)
                 injectKeyEvent(
-                    KeyEvent(
+                    createKeyEvent(
                         downTime,
-                        SystemClock.uptimeMillis(),
                         KeyEvent.ACTION_DOWN,
                         keycode,
-                        0,
-                        0,
-                        KeyEvent.KEYCODE_UNKNOWN,
-                        0,
-                        KeyEvent.FLAG_FROM_SYSTEM,
-                        InputDevice.SOURCE_KEYBOARD
+                        metaState
                     )
                 )
             }
@@ -558,24 +554,52 @@ class ShizukuBridge(private val preferences: SharedPreferences) {
                 }
             } finally {
                 for (index in keycodes.indices.reversed()) {
+                    val keycode = keycodes[index]
                     injectKeyEvent(
-                        KeyEvent(
+                        createKeyEvent(
                             downTime,
-                            SystemClock.uptimeMillis(),
                             KeyEvent.ACTION_UP,
-                            keycodes[index],
-                            0,
-                            0,
-                            KeyEvent.KEYCODE_UNKNOWN,
-                            0,
-                            KeyEvent.FLAG_FROM_SYSTEM,
-                            InputDevice.SOURCE_KEYBOARD
+                            keycode,
+                            metaState
                         )
                     )
+                    metaState = metaState and modifierMetaForKey(keycode).inv()
                 }
             }
         }
     }
+
+    private fun modifierMetaForKey(keycode: Int): Int =
+        when (keycode) {
+            KeyEvent.KEYCODE_CTRL_LEFT -> KeyEvent.META_CTRL_ON or KeyEvent.META_CTRL_LEFT_ON
+            KeyEvent.KEYCODE_CTRL_RIGHT -> KeyEvent.META_CTRL_ON or KeyEvent.META_CTRL_RIGHT_ON
+            KeyEvent.KEYCODE_SHIFT_LEFT -> KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_LEFT_ON
+            KeyEvent.KEYCODE_SHIFT_RIGHT -> KeyEvent.META_SHIFT_ON or KeyEvent.META_SHIFT_RIGHT_ON
+            KeyEvent.KEYCODE_ALT_LEFT -> KeyEvent.META_ALT_ON or KeyEvent.META_ALT_LEFT_ON
+            KeyEvent.KEYCODE_ALT_RIGHT -> KeyEvent.META_ALT_ON or KeyEvent.META_ALT_RIGHT_ON
+            KeyEvent.KEYCODE_META_LEFT -> KeyEvent.META_META_ON or KeyEvent.META_META_LEFT_ON
+            KeyEvent.KEYCODE_META_RIGHT -> KeyEvent.META_META_ON or KeyEvent.META_META_RIGHT_ON
+            else -> 0
+        }
+
+    private fun createKeyEvent(
+        downTime: Long,
+        action: Int,
+        keycode: Int,
+        metaState: Int
+    ): KeyEvent =
+        KeyEvent(
+            downTime,
+            SystemClock.uptimeMillis(),
+            action,
+            keycode,
+            0,
+            metaState,
+            KeyEvent.KEYCODE_UNKNOWN,
+            0,
+            KeyEvent.FLAG_FROM_SYSTEM,
+            InputDevice.SOURCE_KEYBOARD
+        )
 
     fun inputText(text: String) {
         val escaped = shellQuote(text)
